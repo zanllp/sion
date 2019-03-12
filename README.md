@@ -1,5 +1,5 @@
 # Sion
-* Sion是一个轻量级的c++ http客服端，仅单头文件450行，自带std::string的扩展
+* Sion是一个轻量级的c++ http客户端，仅单头文件450行，自带std::string的扩展
 * Sion is a lightweight C + + HTTP Client, with only one header file 450 lines, with its own std::string extension. 
 * Sion由Myhttp(暂未取名)删除服务器相关部分代码而来，仅能作为HttpClient使用。仅支持http协议，本来是打算加入https的，发现加入后根本不能单头文件就实现支持http,https的client。https，ws还是放在体积大点的myHttp吧。
 ### 例子
