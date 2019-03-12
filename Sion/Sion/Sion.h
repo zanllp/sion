@@ -266,22 +266,6 @@ namespace Sion
 			}
 			return ResponseBody;
 		}
-
-		MyString& BuildResponseString()
-		{
-			Header["Cookie"] = Cookie;
-			Header["Server"] = Server;
-			Header["Content-Length"] = std::to_string(ResponseBody.length());
-			Source = ProtocolVersion + " " + Code + " " + Status + "\r\n";
-			for (auto x : Header)
-			{
-				Source += x.first + ":" + x.second + "\r\n";
-			}
-			Source += "\r\n";
-			Source += ResponseBody;
-			return Source;
-		}
-
 	};
 
 	class Request
@@ -331,96 +315,7 @@ namespace Sion
 			}
 		}
 
-		void Connection(Socket socket, MyString host, bool IsSSL = false)
-		{
-			int port = IsSSL ? 433 : 80;//没有:8080，直接80就行
-			auto indexPort = host.find(":");
-			if (indexPort != -1)
-			{//127.0.0.1：5000，改端口为5000
-				port = stoi(host.substr(indexPort + 1));
-				host = host.substr(0, indexPort);//去掉端口
-			}
-			in_addr sa;
-			IP = host.HasLetter() ? GetIpByHost(host) : host;
-			if (InetPton(AF_INET, IP.c_str(), &sa) == -1)
-			{
-				throw new std::exception("地址转换错误");
-			}
-			sockaddr_in saddr;
-			saddr.sin_family = AF_INET;
-			saddr.sin_port = htons(port);
-			saddr.sin_addr = sa;
-			if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
-			{
-				MyString Msg = "连接失败错误码：" +std::to_string(WSAGetLastError());
-				throw std::exception(Msg.c_str());
-			}
-		}
-
-		//解析客户端发送过来的请求
-		void ParseFromSource()
-		{
-			auto ThrowError = [this]
-			{
-				MyString Msg = "解析错误" + Source;
-				throw std::exception(Msg.c_str());
-			};
-			if (Source.length() < 10)
-			{
-				ThrowError();
-			}
-			auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
-			auto data = MyString(std::move(HeaderStr)).Split("\r\n");
-			if (data.size() == 0)
-			{
-				ThrowError();
-			}
-			//请求行
-			auto FirstLine = data[0].Split(" ");
-			if (FirstLine.size() != 3)
-			{
-				ThrowError();
-			}
-			Method = FirstLine[0].Trim();
-			Path = FirstLine[1].Trim();
-			ProtocolVersion = FirstLine[2].Trim();
-			data.erase(data.begin());
-			//请求头
-			Header.clear();
-			for (auto x : data)
-			{
-				auto pair = x.Split(":", 1);
-				if (pair.size() == 2)
-				{
-					Header[pair[0].Trim()] = pair[1].Trim();
-				}
-			}
-			//请求体
-			auto bodyPos = Source.find("\r\n\r\n");
-			if (bodyPos != -1 && bodyPos != Source.length() - 4)
-			{
-				RequestBody = Source.substr(bodyPos + 4);
-			}
-			Cookie = Header["Cookie"];
-			Host = Header["Host"];
-		}
-
-		void BuildRequestString()
-		{
-			Header["Cookie"] = Cookie;
-			Header["Host"] = Host;
-			if (RequestBody != "")
-			{
-				Header["Content-Length"] = std::to_string(RequestBody.length());
-			}
-			Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
-			for (auto x : Header)
-			{
-				Source += x.first + ":" + x.second + "\r\n";
-			}
-			Source += "\r\n";
-			Source += RequestBody;
-		}
+		
 
 		MyString SendRequest(MyString url)
 		{
@@ -462,6 +357,48 @@ namespace Sion
 		}
 
 	private:
+		void BuildRequestString()
+		{
+			Header["Cookie"] = Cookie;
+			Header["Host"] = Host;
+			if (RequestBody != "")
+			{
+				Header["Content-Length"] = std::to_string(RequestBody.length());
+			}
+			Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
+			for (auto x : Header)
+			{
+				Source += x.first + ":" + x.second + "\r\n";
+			}
+			Source += "\r\n";
+			Source += RequestBody;
+		}
+
+		void Connection(Socket socket, MyString host, bool IsSSL = false)
+		{
+			int port = IsSSL ? 433 : 80;//没有:8080，直接80就行
+			auto indexPort = host.find(":");
+			if (indexPort != -1)
+			{//127.0.0.1：5000，改端口为5000
+				port = stoi(host.substr(indexPort + 1));
+				host = host.substr(0, indexPort);//去掉端口
+			}
+			in_addr sa;
+			IP = host.HasLetter() ? GetIpByHost(host) : host;
+			if (InetPton(AF_INET, IP.c_str(), &sa) == -1)
+			{
+				throw new std::exception("地址转换错误");
+			}
+			sockaddr_in saddr;
+			saddr.sin_family = AF_INET;
+			saddr.sin_port = htons(port);
+			saddr.sin_addr = sa;
+			if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
+			{
+				MyString Msg = "连接失败错误码：" + std::to_string(WSAGetLastError());
+				throw std::exception(Msg.c_str());
+			}
+		}
 
 		MyString ReadResponse(Socket socket)
 		{
