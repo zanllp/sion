@@ -84,7 +84,7 @@ MyString& Replace(MyString oldStr, MyString newStr)
 该类用来处理请求响应
 ~~~cpp
 //解析服务器发送过来的响应 获得响应源后需手动调用一次
-MyString ParseFromSource(bool ConverToGbk = false)
+MyString ParseFromSource(bool ConvertToGbk = false)
 ~~~
 ## Request
 该类用来处理发送请求

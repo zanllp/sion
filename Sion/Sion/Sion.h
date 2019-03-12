@@ -207,9 +207,9 @@ namespace Sion
 
 
 		//解析服务器发送过来的响应
-		MyString ParseFromSource(bool ConverToGbk = false)
+		MyString ParseFromSource(bool ConvertToGbk = false)
 		{
-			if (ConverToGbk)
+			if (ConvertToGbk)
 			{
 				Source = Source.ToGbk();
 			}
@@ -376,7 +376,7 @@ namespace Sion
 
 		void Connection(Socket socket, MyString host, bool IsSSL = false)
 		{
-			int port = IsSSL ? 433 : 80;//没有:8080，直接80就行
+			int port = IsSSL ? 443 : 80;//没有:8080，直接80就行
 			auto indexPort = host.find(":");
 			if (indexPort != -1)
 			{//127.0.0.1：5000，改端口为5000
@@ -387,7 +387,7 @@ namespace Sion
 			IP = host.HasLetter() ? GetIpByHost(host) : host;
 			if (InetPton(AF_INET, IP.c_str(), &sa) == -1)
 			{
-				throw new std::exception("地址转换错误");
+				throw std::exception("地址转换错误");
 			}
 			sockaddr_in saddr;
 			saddr.sin_family = AF_INET;
