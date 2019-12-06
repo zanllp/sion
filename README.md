@@ -1,51 +1,27 @@
 # Sion
-* Sion是一个轻量级的c++ http客户端，仅单头文件450行，自带std::string的扩展
-* Sion is a lightweight C + + HTTP Client, with only one header file 450 lines, with its own std::string extension. 
-* Sion由Myhttp(暂未取名)删除服务器相关部分代码而来，仅能作为HttpClient使用。仅支持http协议，本来是打算加入https的，发现加入后根本不能单头文件就实现支持http,https的client。https，ws还是放在体积大点的myHttp吧。
+* Sion是一个轻量级简单易用的c++ http客服端，仅单头文件450行，自带std::string的扩展
+* Sion仅支持http，https需要openssl，不大可能单文件实现，ssl版本移步[MyHttpClient](https://github.com/zanllp/MyHttpClient)，暂不支持长连接，职业前端不定时手痒填坑。
 ### 例子
 ~~~cpp
 #include<iostream>
 #include"Sion.h"
-
-MyString PostTest()
-{
-	Sion::Request request;
-	request.Header["Content-Type"] = "application/json; charset=utf-8";
-	request.RequestBody = R"({"id":null,"password":"zanllp_pw","account":"zanllp"})";
-	Sion::Response response = request.SendRequest(Sion::Post, "http://127.0.0.1:5000/api/auth");
-	response.ParseFromSource();
-	return response.ResponseBody;
-}
-
-MyString ChunkedTest()
-{
-	Sion::Response response = Sion::Request::StaticRequest(Sion::Get, "http://zanllp.cn");
-	response.ParseFromSource(true);
-	return response.ResponseBody;
-}
-
-void ShowHeader()
-{
-	Sion::Request request;
-	Sion::Response response=request.SendRequest(Sion::Get, "http://www.baidu.com");
-	response.ParseFromSource(true);
-	for (auto x : response.Header)
-	{
-		std::cout << x.first << "   " << x.second << std::endl;
-	}
-}
+using namespace Sion;
+using namespace std;
 
 int main()
 {
 	try
 	{
-		ShowHeader();
-		std::cout << ChunkedTest() <<std::endl;
-		std::cout << PostTest() << std::endl;
+		// Get
+		cout << Fetch("http://www.baidu.com").ResponseBody << endl;;
+		// Post
+		Request req;
+		req.Header["Content-Type"] = R"({"id":null,"password":"zanllp_pw","account":"zanllp"})";
+		cout << req.SendRequest(Post, "http://127.0.0.1:7001/api/login").ResponseBody << endl;;
 	}
-	catch (const std::exception &e)
+	catch (const std::exception& e)
 	{
-		std::cout << e.what() << std::endl;
+		cout << e.what();
 	}
 	system("pause");
 }
@@ -82,18 +58,17 @@ MyString& Replace(MyString oldStr, MyString newStr)
 
 ## Response
 该类用来处理请求响应
-~~~cpp
-//解析服务器发送过来的响应 获得响应源后需手动调用一次
-MyString ParseFromSource(bool ConvertToGbk = false)
-~~~
 ## Request
 该类用来处理发送请求
 ~~~cpp
 //设置请求方法 
-void SetHttpMethod(MethodEnum method, MyString other = "")
+void SetHttpMethod(MethodEnum method)
+void SetHttpMethod(MyString other)
 
 //发送请求
 MyString SendRequest(MyString url)
 MyString SendRequest(MethodEnum method, MyString url)
-MyString static StaticRequest(MethodEnum method, MyString url)
 ~~~
+## Fetch
+// 静态请求方法
+Response Fetch(MyString url, MethodEnum method = Get)
