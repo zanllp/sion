@@ -16,15 +16,20 @@ int main()
 		cout << Fetch("http://www.baidu.com").ResponseBody << endl;;
 		// Post
 		Request req;
-		req.Header["Content-Type"] = "application/json; charset=utf-8";
-		req.RequestBody = R"({"id":null,"password":"zanllp_pw","account":"zanllp"})";
-		cout << req.SendRequest(Post, "http://127.0.0.1:7001/api/login").ResponseBody << endl;;
+		req.RequestHeader = {
+			{ "Content-Type","application/json; charset=utf-8" },
+			{ "x-csrf-token","MXx8phRwFI3wd08blRXoWe58" },
+		};
+		req.Cookie = "csrfToken=MXx8phRwFI3wd08blRXoWe58";
+		req.RequestBody = R"({"account":"zanllp","password":"zanllp_pw"})";
+		cout << req.SendRequest(Post, "http://127.0.0.1:7001/user").ResponseBody << endl;
 	}
 	catch (const std::exception& e)
 	{
 		cout << e.what();
 	}
 	system("pause");
+}
 }
 ~~~
 ## MyString
@@ -36,25 +41,25 @@ int main()
 //flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
 //num 分割次数，默认0即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
 //skipEmpty 跳过空字符串，即不压入length==0的字符串
-std::vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
+std::vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true);
 
 //清除前后的字符
 //target 需要清除的字符默认空格
-MyString Trim(char target = ' ')
+MyString Trim(char target = ' ');
 
 //包含字母
-bool HasLetter()
+bool HasLetter();
 
 //转换到gbk 中文显示乱码调用这个
-MyString ToGbk()
+MyString ToGbk();
 
 //返回搜索到的所有位置
 //flag 定位标志
 //num 搜索数量，默认直到结束
-std::vector<int> FindAll(MyString flag, int num = -1)
+std::vector<int> FindAll(MyString flag, int num = -1);
 
 //字符串替换
-MyString& Replace(MyString oldStr, MyString newStr)
+MyString& Replace(MyString oldStr, MyString newStr);
 ~~~
 
 ## Response
@@ -63,13 +68,15 @@ MyString& Replace(MyString oldStr, MyString newStr)
 该类用来处理发送请求
 ~~~cpp
 //设置请求方法 
-void SetHttpMethod(MethodEnum method)
-void SetHttpMethod(MyString other)
+void SetHttpMethod(MethodEnum method);
+void SetHttpMethod(MyString other);
 
 //发送请求
-MyString SendRequest(MyString url)
-MyString SendRequest(MethodEnum method, MyString url)
+MyString SendRequest(MyString url);
+MyString SendRequest(MethodEnum method, MyString url);
 ~~~
 ## Fetch
+~~~cpp
 // 静态请求方法
-Response Fetch(MyString url, MethodEnum method = Get)
+Response Fetch(MyString url, MethodEnum method = Get);
+~~~

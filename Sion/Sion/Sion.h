@@ -1,178 +1,182 @@
 #pragma once
-#pragma warning(disable:4267)
-#pragma warning(disable:4018)
-#pragma warning(disable:6031)
+#pragma warning(disable : 4267)
+#pragma warning(disable : 4018)
+#pragma warning(disable : 6031)
 #include <winsock2.h>
 #include <Windows.h>
 #include <string>
 #include <vector>
-#include<WS2tcpip.h>
-#include<map>
+#include <WS2tcpip.h>
+#include <map>
 #include <regex>
-#pragma comment(lib,"ws2_32.lib")  //2
-using namespace std;
-
-void Throw(string msg)
-{
-	throw std::exception(msg.c_str());
-}
-
-void check(bool condition, const char* msg = "")
-{
-	if (!condition)
-	{
-		Throw(msg);
-	}
-}
-
-class MyString :public string
-{
-public:
-	MyString() = default;
-	~MyString() = default;
-	template<class T>
-	MyString(T&& arg) :string(forward<T>(arg))
-	{
-
-	}
-
-	//使用字符串分割
-	//flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
-	//num 分割次数，默认0即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
-	//skipEmpty 跳过空字符串，即不压入length==0的字符串
-	vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
-	{
-		vector<MyString> dataSet;
-		auto PushData = [&dataSet, skipEmpty](MyString line)
-		{
-			if (line.length() != 0 || !skipEmpty)
-			{
-				dataSet.push_back(line);
-			}
-		};
-		auto Pos = FindAll(flag, num != 0 ? num : -1);
-		if (!Pos.size())
-		{
-			return dataSet;
-		}
-		for (int i = 0; i < Pos.size(); i++)
-		{
-			if (dataSet.size() == num && num != 0)
-			{	//满足数量直接截到结束
-				PushData(substr(Pos[dataSet.size()] + flag.size()));
-				break;
-			}
-			if (i == 0 && Pos[0] != 0)
-			{	//第一个数的位置不是0的话补上
-				PushData(substr(0, Pos[0]));
-			}
-			if (i != Pos.size() - 1)
-			{
-				int Left = Pos[i] + flag.length();
-				int Right = Pos[i + 1] - Left;
-				PushData(substr(Left, Right));
-			}
-			else
-			{	//最后一个标志到结束
-				PushData(substr(*(--Pos.end()) + flag.size()));
-			}
-		}
-		return dataSet;
-	}
-
-	//清除前后的字符
-	//target 需要清除的字符默认空格
-	MyString Trim(char target = ' ')
-	{
-		auto left = find_first_not_of(target);
-		auto right = find_last_not_of(target);
-		if (left == string::npos)
-		{
-			return *this;
-		}
-		return substr(left, right - left + 1);
-	}
-
-	MyString ToLowerCase()
-	{
-		MyString res = *this;
-		for (auto& i : res)
-		{
-			if (i >= 'A' && i <= 'Z')
-			{
-				i += 'a' - 'A';
-			}
-		}
-		return res;
-	}
-
-	//包含字母
-	bool HasLetter()
-	{
-		for (auto x : *this)
-		{
-			if ((x >= 'a' && x <= 'z') ||
-				(x >= 'A' && x <= 'Z'))
-			{
-				return true;
-			}
-		}
-		return false;
-	}
-
-
-	//转换到gbk 中文显示乱码调用这个
-	MyString ToGbk()
-	{
-		//由blog.csdn.net/u012234115/article/details/83186386 改过来
-		auto src_str = c_str();
-		int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
-		wchar_t* wszGBK = new wchar_t[len + 1];
-		memset(wszGBK, 0, len * 2 + 2);
-		MultiByteToWideChar(CP_UTF8, 0, src_str, -1, wszGBK, len);
-		len = WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, NULL, 0, NULL, NULL);
-		char* szGBK = new char[len + 1];
-		memset(szGBK, 0, len + 1);
-		WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, szGBK, len, NULL, NULL);
-		MyString result(szGBK);
-		if (wszGBK) delete[] wszGBK;
-		if (szGBK) delete[] szGBK;
-		return result;
-	}
-
-
-
-	//返回搜索到的所有位置
-	//flag 定位标志
-	//num 搜索数量，默认直到结束
-	vector<int> FindAll(MyString flag, int num = -1)
-	{
-		vector<int> Result;
-		auto Pos = find(flag);
-		while (Pos != -1 && Result.size() != num)
-		{
-			Result.push_back(Pos);
-			Pos = find(flag, *(--Result.end()) + 1);
-		}
-		return Result;
-	}
-
-
-	//字符串替换
-	MyString& Replace(MyString oldStr, MyString newStr)
-	{
-		int pos = find(oldStr);
-		if (pos != -1)
-		{
-			replace(pos, oldStr.length(), newStr);
-		}
-		return *this;
-	}
-
-};
+#pragma comment(lib, "ws2_32.lib") //2
 
 namespace Sion
 {
+
+	using namespace std;
+
+	void Throw(string msg)
+	{
+		throw std::exception(msg.c_str());
+	}
+
+	void check(bool condition, const char* msg = "")
+	{
+		if (!condition)
+		{
+			Throw(msg);
+		}
+	}
+
+	class MyString : public string
+	{
+	public:
+		MyString() = default;
+		~MyString() = default;
+		template<class T>
+		MyString(T&& arg) :string(forward<T>(arg))
+		{
+
+		}
+		//使用字符串分割
+		//flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
+		//num 分割次数，默认0即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
+		//skipEmpty 跳过空字符串，即不压入length==0的字符串
+		vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
+		{
+			vector<MyString> dataSet;
+			auto PushData = [&dataSet, skipEmpty](MyString line) {
+				if (line.length() != 0 || !skipEmpty)
+				{
+					dataSet.push_back(line);
+				}
+			};
+			auto Pos = FindAll(flag, num != 0 ? num : -1);
+			if (!Pos.size())
+			{
+				return dataSet;
+			}
+			for (int i = 0; i < Pos.size(); i++)
+			{
+				if (dataSet.size() == num && num != 0)
+				{ //满足数量直接截到结束
+					if (num == Pos.size())
+					{
+						PushData(substr(*(--Pos.end()) + flag.size()));
+					}
+					else
+					{
+						PushData(substr(Pos[dataSet.size()] + flag.size()));
+					}
+					break;
+				}
+				if (i == 0 && Pos[0] != 0)
+				{ //第一个数的位置不是0的话补上
+					PushData(substr(0, Pos[0]));
+				}
+				if (i != Pos.size() - 1)
+				{
+					int Left = Pos[i] + flag.length();
+					int Right = Pos[i + 1] - Left;
+					PushData(substr(Left, Right));
+				}
+				else
+				{ //最后一个标志到结束
+					PushData(substr(*(--Pos.end()) + flag.size()));
+				}
+			}
+			return dataSet;
+		}
+
+		//清除前后的字符
+		//target 需要清除的字符默认空格
+		MyString Trim(char target = ' ')
+		{
+			auto left = find_first_not_of(target);
+			if (left == string::npos)
+			{
+				return *this;
+			}
+			auto right = find_last_not_of(target);
+			return substr(left, right - left + 1);
+		}
+
+		MyString ToLowerCase()
+		{
+			MyString res = *this;
+			for (auto& i : res)
+			{
+				if (i >= 'A' && i <= 'Z')
+				{
+					i += 'a' - 'A';
+				}
+			}
+			return res;
+		}
+
+		//包含字母
+		bool HasLetter()
+		{
+			for (auto x : *this)
+			{
+				if ((x >= 'a' && x <= 'z') ||
+					(x >= 'A' && x <= 'Z'))
+				{
+					return true;
+				}
+			}
+			return false;
+		}
+
+		//转换到gbk 中文显示乱码调用这个
+		MyString ToGbk()
+		{
+			//由blog.csdn.net/u012234115/article/details/83186386 改过来
+			auto src_str = c_str();
+			int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
+			wchar_t* wszGBK = new wchar_t[len + 1];
+			memset(wszGBK, 0, len * 2 + 2);
+			MultiByteToWideChar(CP_UTF8, 0, src_str, -1, wszGBK, len);
+			len = WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, NULL, 0, NULL, NULL);
+			char* szGBK = new char[len + 1];
+			memset(szGBK, 0, len + 1);
+			WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, szGBK, len, NULL, NULL);
+			MyString result(szGBK);
+			if (wszGBK)
+				delete[] wszGBK;
+			if (szGBK)
+				delete[] szGBK;
+			return result;
+		}
+
+		//返回搜索到的所有位置
+		//flag 定位标志
+		//num 搜索数量，默认直到结束
+		vector<int> FindAll(MyString flag, int num = -1)
+		{
+			vector<int> Result;
+			auto Pos = find(flag);
+			while (Pos != -1 && Result.size() != num)
+			{
+				Result.push_back(Pos);
+				Pos = find(flag, *(--Result.end()) + 1);
+			}
+			return Result;
+		}
+
+		//字符串替换
+		MyString& Replace(MyString oldStr, MyString newStr)
+		{
+			int pos = find(oldStr);
+			if (pos != -1)
+			{
+				replace(pos, oldStr.length(), newStr);
+			}
+			return *this;
+		}
+	};
+
 	using Socket = SOCKET;
 
 	enum MethodEnum
@@ -185,13 +189,14 @@ namespace Sion
 
 	MyString GetIpByHost(MyString hostname)
 	{
-		addrinfo hints, * res;
+		addrinfo hints, *res;
 		in_addr addr;
 		int err;
 		memset(&hints, 0, sizeof(addrinfo));
 		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_family = AF_INET;//ipv4
-		if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0) {
+		hints.ai_family = AF_INET; //ipv4
+		if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
+		{
 			Throw("错误" + err + MyString(gai_strerror(err)));
 		}
 		addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
@@ -201,20 +206,59 @@ namespace Sion
 		return str;
 	}
 
-	Socket GetSocket()//http请求不需要填端口
+	Socket GetSocket() //http请求不需要填端口
 	{
 		//初始化。,WSA windows异步套接字
-		WSADATA inet_WsaData;//
-		WSAStartup(MAKEWORD(2, 0), &inet_WsaData);//socket2.0版本
+		WSADATA inet_WsaData;					   //
+		WSAStartup(MAKEWORD(2, 0), &inet_WsaData); //socket2.0版本
 		if (LOBYTE(inet_WsaData.wVersion) != 2 || HIBYTE(inet_WsaData.wVersion) != 0)
-		{//高位字节指明副版本、低位字节指明主版本
+		{ //高位字节指明副版本、低位字节指明主版本
 			WSACleanup();
 			return -1;
 		}
-		auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0);//ipv4,tcp,tcp或udp该参数可为0
+		auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); //ipv4,tcp,tcp或udp该参数可为0
 		return tcp_socket;
 	}
 
+	class Header
+	{
+	public:
+		Header() = default;
+		~Header() = default;
+		vector<pair<MyString, MyString>> data;
+		Header& operator=(vector<pair<MyString, MyString>>&& other) noexcept
+		{
+			data = other;
+			return *this;
+		}
+		void Add(pair<MyString, MyString> kv)
+		{
+			data.push_back(kv);
+		}
+		vector<MyString> GetValue(MyString key)
+		{
+			vector<MyString> res;
+			for (auto& i : data)
+			{
+				if (i.first == key)
+				{
+					res.push_back(i.second);
+				}
+			}
+			return res;
+		}
+		MyString GetLastValue(MyString key)
+		{
+			for (int i = data.size() - 1; i >= 0; i--)
+			{
+				if (data[i].first == key)
+				{
+					return data[i].second;
+				}
+			}
+			return "";
+		}
+	};
 
 	class Response
 	{
@@ -229,7 +273,7 @@ namespace Sion
 		MyString TransferEncoding;
 		int ContentLength = 0;
 		bool IsChunked = false;
-		map<MyString, MyString> Header;
+		Header ResponseHeader;
 		MyString ResponseBody;
 		Response() = default;
 		~Response() = default;
@@ -244,12 +288,10 @@ namespace Sion
 			ParseFromSource();
 		}
 
-
 		//解析服务器发送过来的响应
 		void ParseFromSource()
 		{
-			auto ThrowError = [&]
-			{
+			auto ThrowError = [&] {
 				MyString Msg = "解析错误\n" + Source;
 				Throw(Msg.c_str());
 			};
@@ -257,9 +299,9 @@ namespace Sion
 			auto data = MyString(HeaderStr).Split("\r\n");
 			if (data.size() == 0)
 			{
-				return ;
+				return;
 			}
-			auto FirstLine = data[0].Split(" ");
+			auto FirstLine = data[0].Split(" ", 2);
 			if (FirstLine.size() != 3)
 			{
 				ThrowError();
@@ -273,14 +315,15 @@ namespace Sion
 				auto pair = x.Split(":", 1);
 				if (pair.size() == 2)
 				{
-					Header[pair[0].Trim().ToLowerCase()] = pair[1].Trim();
+					ResponseHeader.Add({ pair[0].Trim().ToLowerCase(),pair[1].Trim() });
 				}
 			}
-			MyString contentLen = Header["content-length"];
+			auto HeaderValue = [&](MyString k) { return ResponseHeader.GetLastValue(k); };
+			MyString contentLen = HeaderValue("content-length");
 			ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
-			Cookie = Header["cookie"];
-			Server = Header["server"];
-			TransferEncoding = Header["transfer-encoding"];
+			Cookie = HeaderValue("cookie");
+			Server = HeaderValue("server");
+			TransferEncoding = HeaderValue("transfer-encoding");
 			IsChunked = ContentLength == 0;
 			auto bodyPos = Source.find("\r\n\r\n");
 			if (bodyPos != -1 && bodyPos != Source.length() - 4)
@@ -299,9 +342,10 @@ namespace Sion
 					ResponseBody = ResponseBodyClear;
 				}
 			}
-			return ;
 		}
 	};
+
+
 
 	class Request
 	{
@@ -315,7 +359,7 @@ namespace Sion
 		MyString Host;
 		MyString Cookie;
 		MyString RequestBody;
-		map<MyString, MyString> Header;
+		Header RequestHeader;
 		Request() = default;
 		~Request() = default;
 
@@ -345,18 +389,16 @@ namespace Sion
 			Method = other;
 		}
 
-
-
 		Response SendRequest(MyString url)
 		{
-			check(Method.length(), "未设置请求方法");
-			regex urlParse(R"(^(http)://([\w.]*):?(\d*)/?(.*)$)");
+			check(Method.length() != 0);
+			regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
 			smatch m;
 			regex_match(url, m, urlParse);
 			check(m.size() == 5, "url格式不对或者是用了除http外的协议");
 			Host = m[2];
-			port = m[3].str().length() == 0 ? 80 : stoi(m[3]);
-			Path = m[4].str().length() == 0 ? "/" : m[4].str();
+			port = m[3].length() == 0 ? 80 : stoi(m[3]);
+			Path = m[4].length() == 0 ? "/" : m[4].str();
 			Socket socket = GetSocket();
 			Connection(socket, Host);
 			BuildRequestString();
@@ -364,29 +406,25 @@ namespace Sion
 			return Response(ReadResponse(socket));
 		}
 
-
 		Response SendRequest(MethodEnum method, MyString url)
 		{
 			SetHttpMethod(method);
 			return SendRequest(url);
 		}
-
-
-
 	private:
 		void BuildRequestString()
 		{
 			if (Cookie.length())
 			{
-				Header["Cookie"] = Cookie;
+				RequestHeader.Add({ "Cookie",Cookie });
 			}
-			Header["Host"] = Host;
+			RequestHeader.Add({ "Host",Host });
 			if (RequestBody != "")
 			{
-				Header["Content-Length"] = to_string(RequestBody.length());
+				RequestHeader.Add({ "Content-Length",to_string(RequestBody.length()) });
 			}
 			Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
-			for (auto x : Header)
+			for (auto x : RequestHeader.data)
 			{
 				Source += x.first + ":" + x.second + "\r\n";
 			}
@@ -398,10 +436,14 @@ namespace Sion
 		{
 			in_addr sa;
 			IP = host.HasLetter() ? GetIpByHost(host) : host;
-			if (InetPton(AF_INET, IP.c_str(), &sa) == -1)
-			{
-				throw exception("地址转换错误");
-			}
+#ifdef UNICODE
+			WCHAR wcIP[256];
+			memset(wcIP, 0, sizeof(wcIP));
+			MultiByteToWideChar(CP_ACP, 0, IP.c_str(), IP.length() + 1, wcIP, sizeof(wcIP) / sizeof(wcIP[0]));
+			check(InetPton(AF_INET, wcIP, &sa) != -1, "地址转换错误");
+#else
+			check((InetPton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
+#endif
 			sockaddr_in saddr;
 			saddr.sin_family = AF_INET;
 			saddr.sin_port = htons(port);
@@ -419,9 +461,9 @@ namespace Sion
 			recv(socket, buf, sizeof(buf) - 1, 0);
 			resp.Source += buf;
 			resp.ParseFromSource();
-			auto lenHeader = resp.Source.length() - resp.ResponseBody.length();//响应头长度
+			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); //响应头长度
 			while (true)
-			{	//接收到的字符少于缓冲区长度，接收结束,也有可能是错误或者连接关闭
+			{ //接收到的字符少于缓冲区长度，接收结束,也有可能是错误或者连接关闭
 				if (resp.IsChunked)
 				{
 					if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n")
@@ -454,5 +496,4 @@ namespace Sion
 		request.SetHttpMethod(method);
 		return Response(request.SendRequest(url));
 	}
-
-}
+} // namespace Sion
