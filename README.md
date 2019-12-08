@@ -45,7 +45,7 @@ std::vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true);
 
 //清除前后的字符
 //target 需要清除的字符默认空格
-MyString Trim(char target = ' ');
+MyString Trim(MyString target = " ");
 
 //包含字母
 bool HasLetter();
@@ -68,15 +68,15 @@ MyString& Replace(MyString oldStr, MyString newStr);
 该类用来处理发送请求
 ~~~cpp
 //设置请求方法 
-void SetHttpMethod(MethodEnum method);
+void SetHttpMethod(Method method);
 void SetHttpMethod(MyString other);
 
 //发送请求
-MyString SendRequest(MyString url);
-MyString SendRequest(MethodEnum method, MyString url);
+Response SendRequest(MyString url);
+Response SendRequest(Method method, MyString url);
 ~~~
 ## Fetch
 ~~~cpp
 // 静态请求方法
-Response Fetch(MyString url, MethodEnum method = Get);
+Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString>> header = {}, MyString body = "");
 ~~~

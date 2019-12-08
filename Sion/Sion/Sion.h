@@ -10,9 +10,12 @@
 #include <map>
 #include <regex>
 #pragma comment(lib, "ws2_32.lib") //2
+#ifndef SION_DISABLE_SSL 
 
+#endif // !SION_DISABLE_SSL 
 namespace Sion
 {
+
 
 	using namespace std;
 
@@ -46,42 +49,32 @@ namespace Sion
 		vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
 		{
 			vector<MyString> dataSet;
-			auto PushData = [&dataSet, skipEmpty](MyString line) {
+			auto PushData = [&](MyString line) {
 				if (line.length() != 0 || !skipEmpty)
 				{
 					dataSet.push_back(line);
 				}
 			};
 			auto Pos = FindAll(flag, num != 0 ? num : -1);
-			if (!Pos.size())
+			if (Pos.size() == 0) { return { *this }; }
+			for (int i = 0; i < Pos.size()+1; i++)
 			{
-				return dataSet;
-			}
-			for (int i = 0; i < Pos.size(); i++)
-			{
-				if (dataSet.size() == num && num != 0)
-				{ //满足数量直接截到结束
-					if (num == Pos.size())
-					{
-						PushData(substr(*(--Pos.end()) + flag.size()));
-					}
-					else
-					{
-						PushData(substr(Pos[dataSet.size()] + flag.size()));
-					}
+				if (dataSet.size() == num && Pos.size() > num && num != 0)
+				{//满足数量直接截到结束
+					PushData(substr(Pos[dataSet.size()] + flag.size()));
 					break;
 				}
-				if (i == 0 && Pos[0] != 0)
+				if (i == 0)
 				{ //第一个数的位置不是0的话补上
 					PushData(substr(0, Pos[0]));
 				}
-				if (i != Pos.size() - 1)
+				else if (i != Pos.size())
 				{
-					int Left = Pos[i] + flag.length();
-					int Right = Pos[i + 1] - Left;
+					int Left = Pos[i-1] + flag.length();
+					int Right = Pos[i] - Left;
 					PushData(substr(Left, Right));
 				}
-				else
+				else 
 				{ //最后一个标志到结束
 					PushData(substr(*(--Pos.end()) + flag.size()));
 				}
@@ -91,7 +84,7 @@ namespace Sion
 
 		//清除前后的字符
 		//target 需要清除的字符默认空格
-		MyString Trim(char target = ' ')
+		MyString Trim(MyString target = " ")
 		{
 			auto left = find_first_not_of(target);
 			if (left == string::npos)
@@ -99,7 +92,7 @@ namespace Sion
 				return *this;
 			}
 			auto right = find_last_not_of(target);
-			return substr(left, right - left + 1);
+			return substr(left, right - left + target.length());
 		}
 
 		MyString ToLowerCase()
@@ -143,10 +136,8 @@ namespace Sion
 			memset(szGBK, 0, len + 1);
 			WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, szGBK, len, NULL, NULL);
 			MyString result(szGBK);
-			if (wszGBK)
-				delete[] wszGBK;
-			if (szGBK)
-				delete[] szGBK;
+			if (wszGBK) delete[] wszGBK;
+			if (szGBK) delete[] szGBK;
 			return result;
 		}
 
@@ -160,7 +151,7 @@ namespace Sion
 			while (Pos != -1 && Result.size() != num)
 			{
 				Result.push_back(Pos);
-				Pos = find(flag, *(--Result.end()) + 1);
+				Pos = find(flag, *(--Result.end()) + flag.length());
 			}
 			return Result;
 		}
@@ -179,17 +170,11 @@ namespace Sion
 
 	using Socket = SOCKET;
 
-	enum MethodEnum
-	{
-		Get,
-		Post,
-		Put,
-		Delete
-	};
+	enum  Method { Get, Post, Put, Delete };
 
 	MyString GetIpByHost(MyString hostname)
 	{
-		addrinfo hints, *res;
+		addrinfo hints, * res;
 		in_addr addr;
 		int err;
 		memset(&hints, 0, sizeof(addrinfo));
@@ -363,24 +348,14 @@ namespace Sion
 		Request() = default;
 		~Request() = default;
 
-		void SetHttpMethod(MethodEnum method)
+		void SetHttpMethod(Sion::Method method)
 		{
 			switch (method)
 			{
-			case MethodEnum::Get:
-				Method = "GET";
-				break;
-			case MethodEnum::Post:
-				Method = "POST";
-				break;
-			case MethodEnum::Put:
-				Method = "PUT";
-				break;
-			case MethodEnum::Delete:
-				Method = "DELETE";
-				break;
-			default:
-				break;
+			case Method::Get: Method = "GET"; break;
+			case Method::Post: Method = "POST"; break;
+			case Method::Put: Method = "PUT"; break;
+			case Method::Delete: Method = "DELETE"; break;
 			}
 		}
 
@@ -406,7 +381,7 @@ namespace Sion
 			return Response(ReadResponse(socket));
 		}
 
-		Response SendRequest(MethodEnum method, MyString url)
+		Response SendRequest(Sion::Method method, MyString url)
 		{
 			SetHttpMethod(method);
 			return SendRequest(url);
@@ -490,10 +465,13 @@ namespace Sion
 		}
 	};
 
-	Response Fetch(MyString url, MethodEnum method = Get)
+	Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
 	{
 		Request request;
 		request.SetHttpMethod(method);
+		request.RequestBody = body;
+		request.RequestHeader.data = header;
 		return Response(request.SendRequest(url));
 	}
+
 } // namespace Sion

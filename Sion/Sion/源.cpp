@@ -1,10 +1,11 @@
 #include<iostream>
 #include"Sion.h"
+#define SION_DISABLE_SSL 
 using namespace Sion;
 using namespace std;
-
 int main()
 {
+
 	try
 	{
 		// Get
@@ -17,7 +18,7 @@ int main()
 		};
 		req.Cookie = "csrfToken=MXx8phRwFI3wd08blRXoWe58";
 		req.RequestBody = R"({"account":"zanllp","password":"zanllp_pw"})";
-		cout << req.SendRequest(Post, "http://127.0.0.1:7001/user").ResponseBody << endl;
+		cout << req.SendRequest(Post,"http://127.0.0.1:7001/user" ).ResponseBody << endl;
 	}
 	catch (const std::exception& e)
 	{
