@@ -3,10 +3,10 @@
 #pragma warning(disable : 4018)
 #pragma warning(disable : 6031)
 #include <string>
-#include <vector>
 #include <map>
 #include <regex>
 #include <array>
+#include <vector>
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <winsock2.h>
@@ -24,10 +24,9 @@ namespace Sion
 {
 
 	using std::string;
-	using std::vector;
 	using std::pair;
-
-	void Throw(string msg) { throw std::exception(msg.c_str()); }
+	using std::vector;
+	void Throw(string msg = "") { throw std::exception(msg.c_str()); }
 
 	void check(bool condition, string msg = "")
 	{
@@ -58,7 +57,11 @@ namespace Sion
 				}
 			};
 			auto Pos = FindAll(flag, num != 0 ? num : -1);
-			if (Pos.size() == 0) { return { *this }; }
+			if (Pos.size() == 0)
+			{
+				dataSet.push_back(*this);
+				return dataSet;
+			}
 			for (int i = 0; i < Pos.size() + 1; i++)
 			{
 				if (dataSet.size() == num && Pos.size() > num&& num != 0)
@@ -124,6 +127,7 @@ namespace Sion
 		//转换到gbk 中文显示乱码调用这个
 		MyString ToGbk()
 		{
+#ifdef _WIN32
 			//由blog.csdn.net/u012234115/article/details/83186386 改过来
 			auto src_str = c_str();
 			int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
@@ -138,6 +142,8 @@ namespace Sion
 			if (wszGBK) delete[] wszGBK;
 			if (szGBK) delete[] szGBK;
 			return result;
+#else
+#endif // _WIN32
 		}
 
 		//返回搜索到的所有位置
@@ -169,7 +175,7 @@ namespace Sion
 
 	using Socket = SOCKET;
 
-	enum  Method { Get, Post, Put, Delete };
+	enum class Method { Get, Post, Put, Delete };
 
 	MyString GetIpByHost(MyString hostname)
 	{
@@ -272,7 +278,7 @@ namespace Sion
 			ParseFromSource();
 		}
 
-		MyString HeaderValue (MyString k) { return ResponseHeader.GetLastValue(k); };
+		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k); };
 
 		//解析服务器发送过来的响应
 		void ParseFromSource()
@@ -361,13 +367,13 @@ namespace Sion
 
 		Request& SetHeader(vector<pair<MyString, MyString>> header) { RequestHeader.data = header; return *this; }
 
-		Request& SetHeader(MyString k, MyString v) { RequestHeader.Add(k,v); return *this; }
+		Request& SetHeader(MyString k, MyString v) { RequestHeader.Add(k, v); return *this; }
 
-		Response SendRequest(Sion::Method method, MyString url) { SetHttpMethod(method); return SendRequest(url); }
+		Response Send(Sion::Method method, MyString url) { SetHttpMethod(method); return Send(url); }
 
-		Response SendRequest() { return SendRequest(Url); }
+		Response Send() { return Send(Url); }
 
-		Response SendRequest(MyString url)
+		Response Send(MyString url)
 		{
 			check(Method.length() != 0);
 			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
@@ -384,7 +390,6 @@ namespace Sion
 			return Response(ReadResponse(socket));
 		}
 
-		
 	private:
 		void BuildRequestString()
 		{
@@ -431,10 +436,10 @@ namespace Sion
 		MyString ReadResponse(Socket socket)
 		{
 			const int bufSize = 1000;
-			std::array<char,bufSize> buf { 0 };
+			std::array<char, bufSize> buf{ 0 };
 			Response resp;
-			recv(socket,buf.data(), bufSize - 1, 0);
-			resp.Source+=buf.data();
+			recv(socket, buf.data(), bufSize - 1, 0);
+			resp.Source += buf.data();
 			resp.ParseFromSource();
 			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); //响应头长度
 			while (true)
@@ -465,15 +470,9 @@ namespace Sion
 		}
 	};
 
-	Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
+	Response Fetch(MyString url, Method method = Method::Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
 	{
-		return Request()
-			.SetUrl(url)
-			.SetHttpMethod(method)
-			.SetHeader(header)
-			.SetBody(body)
-			.SendRequest();
+		return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 	}
-
 
 } // namespace Sion

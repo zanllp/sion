@@ -3,33 +3,44 @@
 * Sion仅支持http，https需要openssl，不大可能单文件实现，ssl版本移步[MyHttpClient](https://github.com/zanllp/MyHttpClient)，暂不支持长连接，职业前端不定时手痒填坑。
 ### 例子
 ~~~cpp
-#include<iostream>
-#define SION_DISABLE_SSL 
-#include"Sion.h"
+
+#include <iostream>
+#define SION_DISABLE_SSL
+#include "Sion.h"
+#include <ppltasks.h>
 using namespace Sion;
 using namespace std;
 int main()
 {
-
 	try
 	{
-		// Get
-		cout << Fetch("http://www.baidu.com").Source << endl;;
-		// Post
-		auto resp = Request()
-			.SetUrl("http://127.0.0.1:7001/user")
-			.SetHttpMethod(Post)
-			.SetBody(R"({"account":"zanllp","password":"zanllp_pw"})")
-			.SetCookie("csrfToken=4CUb9Rjk0dgRXZRZorAqbTm8")
-			.SetHeader("Content-Type", "application/json; charset=utf-8")
-			.SetHeader("x-csrf-token", "4CUb9Rjk0dgRXZRZorAqbTm8")
-			.SendRequest();
-		cout << resp.ResponseBody << endl;
+		cout << Fetch("http://www.baidu.com").Source << endl;
 	}
 	catch (const std::exception & e)
 	{
 		cout << e.what();
 	}
+
+	// 使用ppl实现异步操作，sion内为阻塞io
+	concurrency::create_task([]() {
+		try
+		{
+			return Request()
+				.SetUrl("http://127.0.0.1:7001/user")
+				.SetHttpMethod(Method::Post)
+				.SetBody(R"({"account":"zanllp","password":"ioflow@1598.auth"})")
+				.SetCookie("csrfToken=4CUb9Rjk0dgRXZRZorAqbTm8")
+				.SetHeader("Content-Type", "application/json; charset=utf-8")
+				.SetHeader("x-csrf-token", "4CUb9Rjk0dgRXZRZorAqbTm8")
+				.Send();
+		}
+		catch (const std::exception & e)
+		{
+			cout << e.what();
+		}
+	}).then([](Response resp) {
+		cout << resp.ResponseBody << endl;
+	});
 	system("pause");
 }
 ~~~
@@ -68,10 +79,13 @@ MyString& Replace(MyString oldStr, MyString newStr);
 ## Request
 该类用来处理发送请求
 ~~~cpp
-//设置请求方法 
-void SetHttpMethod(Method method);
-void SetHttpMethod(MyString other);
-
+//支持链式设置属性
+Request& SetHttpMethod(MyString other) ;
+Request& SetUrl(MyString url);
+Request& SetCookie(MyString cookie);
+Request& SetBody(MyString body);
+Request& SetHeader(vector<pair<MyString, MyString>> header);
+Request& SetHeader(MyString k, MyString v);
 //发送请求
 Response SendRequest(MyString url);
 Response SendRequest(Method method, MyString url);
