@@ -2,29 +2,34 @@
 #pragma warning(disable : 4267)
 #pragma warning(disable : 4018)
 #pragma warning(disable : 6031)
-#include <winsock2.h>
-#include <Windows.h>
 #include <string>
 #include <vector>
-#include <WS2tcpip.h>
 #include <map>
 #include <regex>
+#include <array>
+#ifdef _WIN32
+#include <WS2tcpip.h>
+#include <winsock2.h>
+#include <Windows.h>
 #pragma comment(lib, "ws2_32.lib") //2
-#ifndef SION_DISABLE_SSL 
+#else _linux
+#endif // WIN32
 
+#ifndef SION_DISABLE_SSL 
+#include <openssl/ssl.h>
+#include <openssl/bio.h>
+#include <openssl/err.h>
 #endif // !SION_DISABLE_SSL 
 namespace Sion
 {
 
+	using std::string;
+	using std::vector;
+	using std::pair;
 
-	using namespace std;
+	void Throw(string msg) { throw std::exception(msg.c_str()); }
 
-	void Throw(string msg)
-	{
-		throw std::exception(msg.c_str());
-	}
-
-	void check(bool condition, const char* msg = "")
+	void check(bool condition, string msg = "")
 	{
 		if (!condition)
 		{
@@ -38,10 +43,7 @@ namespace Sion
 		MyString() = default;
 		~MyString() = default;
 		template<class T>
-		MyString(T&& arg) :string(forward<T>(arg))
-		{
-
-		}
+		MyString(T&& arg) :string(std::forward<T>(arg)) { }
 		//使用字符串分割
 		//flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
 		//num 分割次数，默认0即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
@@ -57,9 +59,9 @@ namespace Sion
 			};
 			auto Pos = FindAll(flag, num != 0 ? num : -1);
 			if (Pos.size() == 0) { return { *this }; }
-			for (int i = 0; i < Pos.size()+1; i++)
+			for (int i = 0; i < Pos.size() + 1; i++)
 			{
-				if (dataSet.size() == num && Pos.size() > num && num != 0)
+				if (dataSet.size() == num && Pos.size() > num&& num != 0)
 				{//满足数量直接截到结束
 					PushData(substr(Pos[dataSet.size()] + flag.size()));
 					break;
@@ -70,11 +72,11 @@ namespace Sion
 				}
 				else if (i != Pos.size())
 				{
-					int Left = Pos[i-1] + flag.length();
+					int Left = Pos[i - 1] + flag.length();
 					int Right = Pos[i] - Left;
 					PushData(substr(Left, Right));
 				}
-				else 
+				else
 				{ //最后一个标志到结束
 					PushData(substr(*(--Pos.end()) + flag.size()));
 				}
@@ -87,10 +89,7 @@ namespace Sion
 		MyString Trim(MyString target = " ")
 		{
 			auto left = find_first_not_of(target);
-			if (left == string::npos)
-			{
-				return *this;
-			}
+			if (left == string::npos) { return *this; }
 			auto right = find_last_not_of(target);
 			return substr(left, right - left + target.length());
 		}
@@ -111,7 +110,7 @@ namespace Sion
 		//包含字母
 		bool HasLetter()
 		{
-			for (auto x : *this)
+			for (auto& x : *this)
 			{
 				if ((x >= 'a' && x <= 'z') ||
 					(x >= 'A' && x <= 'Z'))
@@ -216,9 +215,9 @@ namespace Sion
 			data = other;
 			return *this;
 		}
-		void Add(pair<MyString, MyString> kv)
+		void Add(MyString k, MyString v)
 		{
-			data.push_back(kv);
+			data.push_back({ k,v });
 		}
 		vector<MyString> GetValue(MyString key)
 		{
@@ -273,24 +272,16 @@ namespace Sion
 			ParseFromSource();
 		}
 
+		MyString HeaderValue (MyString k) { return ResponseHeader.GetLastValue(k); };
+
 		//解析服务器发送过来的响应
 		void ParseFromSource()
 		{
-			auto ThrowError = [&] {
-				MyString Msg = "解析错误\n" + Source;
-				Throw(Msg.c_str());
-			};
 			auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
 			auto data = MyString(HeaderStr).Split("\r\n");
-			if (data.size() == 0)
-			{
-				return;
-			}
+			if (data.size() == 0) { return; }
 			auto FirstLine = data[0].Split(" ", 2);
-			if (FirstLine.size() != 3)
-			{
-				ThrowError();
-			}
+			check(FirstLine.size() == 3, "解析错误\n" + Source);
 			ProtocolVersion = FirstLine[0].Trim();
 			Code = FirstLine[1].Trim();
 			Status = FirstLine[2].Trim();
@@ -300,10 +291,9 @@ namespace Sion
 				auto pair = x.Split(":", 1);
 				if (pair.size() == 2)
 				{
-					ResponseHeader.Add({ pair[0].Trim().ToLowerCase(),pair[1].Trim() });
+					ResponseHeader.Add(pair[0].Trim().ToLowerCase(), pair[1].Trim());
 				}
 			}
-			auto HeaderValue = [&](MyString k) { return ResponseHeader.GetLastValue(k); };
 			MyString contentLen = HeaderValue("content-length");
 			ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
 			Cookie = HeaderValue("cookie");
@@ -345,10 +335,11 @@ namespace Sion
 		MyString Cookie;
 		MyString RequestBody;
 		Header RequestHeader;
+		MyString Url;
 		Request() = default;
 		~Request() = default;
 
-		void SetHttpMethod(Sion::Method method)
+		Request& SetHttpMethod(Sion::Method method)
 		{
 			switch (method)
 			{
@@ -357,18 +348,30 @@ namespace Sion
 			case Method::Put: Method = "PUT"; break;
 			case Method::Delete: Method = "DELETE"; break;
 			}
+			return *this;
 		}
 
-		void SetHttpMethod(MyString other)
-		{
-			Method = other;
-		}
+		Request& SetHttpMethod(MyString other) { Method = other; return *this; }
+
+		Request& SetUrl(MyString url) { Url = url; return *this; }
+
+		Request& SetCookie(MyString cookie) { Cookie = cookie; return *this; }
+
+		Request& SetBody(MyString body) { RequestBody = body; return *this; }
+
+		Request& SetHeader(vector<pair<MyString, MyString>> header) { RequestHeader.data = header; return *this; }
+
+		Request& SetHeader(MyString k, MyString v) { RequestHeader.Add(k,v); return *this; }
+
+		Response SendRequest(Sion::Method method, MyString url) { SetHttpMethod(method); return SendRequest(url); }
+
+		Response SendRequest() { return SendRequest(Url); }
 
 		Response SendRequest(MyString url)
 		{
 			check(Method.length() != 0);
-			regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
-			smatch m;
+			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
+			std::smatch m;
 			regex_match(url, m, urlParse);
 			check(m.size() == 5, "url格式不对或者是用了除http外的协议");
 			Host = m[2];
@@ -381,27 +384,23 @@ namespace Sion
 			return Response(ReadResponse(socket));
 		}
 
-		Response SendRequest(Sion::Method method, MyString url)
-		{
-			SetHttpMethod(method);
-			return SendRequest(url);
-		}
+		
 	private:
 		void BuildRequestString()
 		{
 			if (Cookie.length())
 			{
-				RequestHeader.Add({ "Cookie",Cookie });
+				RequestHeader.Add("Cookie", Cookie);
 			}
-			RequestHeader.Add({ "Host",Host });
-			if (RequestBody != "")
+			RequestHeader.Add("Host", Host);
+			if (RequestBody.length())
 			{
-				RequestHeader.Add({ "Content-Length",to_string(RequestBody.length()) });
+				RequestHeader.Add("Content-Length", std::to_string(RequestBody.length()));
 			}
 			Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
 			for (auto x : RequestHeader.data)
 			{
-				Source += x.first + ":" + x.second + "\r\n";
+				Source += x.first + ": " + x.second + "\r\n";
 			}
 			Source += "\r\n";
 			Source += RequestBody;
@@ -423,18 +422,19 @@ namespace Sion
 			saddr.sin_family = AF_INET;
 			saddr.sin_port = htons(port);
 			saddr.sin_addr = sa;
-			if (::connect(socket, (sockaddr*)& saddr, sizeof(saddr)) != 0)
+			if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
 			{
-				Throw("连接失败错误码：" + to_string(WSAGetLastError()));
+				Throw("连接失败错误码：" + std::to_string(WSAGetLastError()));
 			}
 		}
 
 		MyString ReadResponse(Socket socket)
 		{
-			char buf[1024] = { 0 };
+			const int bufSize = 1000;
+			std::array<char,bufSize> buf { 0 };
 			Response resp;
-			recv(socket, buf, sizeof(buf) - 1, 0);
-			resp.Source += buf;
+			recv(socket,buf.data(), bufSize - 1, 0);
+			resp.Source+=buf.data();
 			resp.ParseFromSource();
 			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); //响应头长度
 			while (true)
@@ -453,12 +453,12 @@ namespace Sion
 						break;
 					}
 				}
-				memset(buf, 0, sizeof(buf));
-				if (int num = recv(socket, buf, sizeof(buf) - 1, 0) < 0)
+				buf.fill(0);
+				if (int num = recv(socket, buf.data(), bufSize - 1, 0) < 0)
 				{
-					Throw("网络异常,Socket错误码：" + to_string(num));
+					Throw("网络异常,Socket错误码：" + std::to_string(num));
 				}
-				resp.Source += buf;
+				resp.Source += buf.data();
 			}
 			closesocket(socket);
 			return resp.Source;
@@ -467,11 +467,13 @@ namespace Sion
 
 	Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
 	{
-		Request request;
-		request.SetHttpMethod(method);
-		request.RequestBody = body;
-		request.RequestHeader.data = header;
-		return Response(request.SendRequest(url));
+		return Request()
+			.SetUrl(url)
+			.SetHttpMethod(method)
+			.SetHeader(header)
+			.SetBody(body)
+			.SendRequest();
 	}
+
 
 } // namespace Sion
