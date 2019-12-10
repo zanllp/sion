@@ -1,47 +1,51 @@
 # Sion
-* Sion是一个轻量级简单易用的c++ http客户端，仅单头文件450行，自带std::string的扩展
-* Sion仅支持http，https需要openssl，不大可能单文件实现，ssl版本移步[MyHttpClient](https://github.com/zanllp/MyHttpClient)，暂不支持长连接，职业前端不定时手痒填坑。
+* Sion是一个轻量级简单易用的c++ http客户端
+* 仅单头文件500行，自带std::string的扩展
+* 支持http,https请求。https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要https 可以使用 #define SION_DISABLE_SSL 关闭
 ### 例子
 ~~~cpp
-
 #include <iostream>
-#define SION_DISABLE_SSL
+// #define SION_DISABLE_SSL
 #include "Sion.h"
 #include <ppltasks.h>
 using namespace Sion;
 using namespace std;
 int main()
 {
-	try
-	{
-		cout << Fetch("http://www.baidu.com").Source << endl;
-	}
-	catch (const std::exception & e)
-	{
-		cout << e.what();
-	}
-
 	// 使用ppl实现异步操作，sion内为阻塞io
 	concurrency::create_task([]() {
 		try
 		{
+			return Fetch("https://api.zanllp.cn/plugin");
+		}
+		catch (const std::exception & e)
+		{
+			cout << e.what();
+		}
+		return Response();
+	}).then([](Response resp) {
+		cout << resp.ResponseBody << endl;
+	}).then([]() {
+		try
+		{
 			return Request()
-				.SetUrl("http://127.0.0.1:7001/user")
+				.SetUrl("https://api.zanllp.cn/socket/push?descriptor=fHXMHCQfcgNHDq2P")
 				.SetHttpMethod(Method::Post)
-				.SetBody(R"({"account":"zanllp","password":"ioflow@1598.auth"})")
-				.SetCookie("csrfToken=4CUb9Rjk0dgRXZRZorAqbTm8")
+				.SetBody(R"({"data": 233333,"msg":"hello world!"})")
 				.SetHeader("Content-Type", "application/json; charset=utf-8")
-				.SetHeader("x-csrf-token", "4CUb9Rjk0dgRXZRZorAqbTm8")
 				.Send();
 		}
 		catch (const std::exception & e)
 		{
 			cout << e.what();
 		}
+		return Response();
 	}).then([](Response resp) {
-		cout << resp.ResponseBody << endl;
+			cout << resp.ResponseBody << endl;
+	}).then([] {
+		exit(0);
 	});
-	system("pause");
+	this_thread::sleep_for(10s);
 }
 ~~~
 ## MyString
@@ -87,8 +91,8 @@ Request& SetBody(MyString body);
 Request& SetHeader(vector<pair<MyString, MyString>> header);
 Request& SetHeader(MyString k, MyString v);
 //发送请求
-Response SendRequest(MyString url);
-Response SendRequest(Method method, MyString url);
+Response Send(MyString url);
+Response Send(Method method, MyString url);
 ~~~
 ## Fetch
 ~~~cpp

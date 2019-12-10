@@ -13,8 +13,7 @@
 #include <Windows.h>
 #pragma comment(lib, "ws2_32.lib") //2
 #else _linux
-#endif // WIN32
-
+#endif // WIN32 
 #ifndef SION_DISABLE_SSL 
 #include <openssl/ssl.h>
 #include <openssl/bio.h>
@@ -26,15 +25,6 @@ namespace Sion
 	using std::string;
 	using std::pair;
 	using std::vector;
-	void Throw(string msg = "") { throw std::exception(msg.c_str()); }
-
-	void check(bool condition, string msg = "")
-	{
-		if (!condition)
-		{
-			Throw(msg);
-		}
-	}
 
 	class MyString : public string
 	{
@@ -57,11 +47,7 @@ namespace Sion
 				}
 			};
 			auto Pos = FindAll(flag, num != 0 ? num : -1);
-			if (Pos.size() == 0)
-			{
-				dataSet.push_back(*this);
-				return dataSet;
-			}
+			if (Pos.size() == 0) { return { *this }; }
 			for (int i = 0; i < Pos.size() + 1; i++)
 			{
 				if (dataSet.size() == num && Pos.size() > num&& num != 0)
@@ -173,6 +159,15 @@ namespace Sion
 		}
 	};
 
+	void Throw(MyString msg = "") { throw std::exception(msg.ToGbk().c_str()); }
+
+	void check(bool condition, MyString msg = "")
+	{
+		if (!condition)
+		{
+			Throw(msg);
+		}
+	}
 	using Socket = SOCKET;
 
 	enum class Method { Get, Post, Put, Delete };
@@ -326,8 +321,6 @@ namespace Sion
 		}
 	};
 
-
-
 	class Request
 	{
 	public:
@@ -336,6 +329,7 @@ namespace Sion
 		MyString Method;
 		MyString Path;
 		MyString ProtocolVersion = "HTTP/1.1";
+		MyString Protocol;
 		MyString IP;
 		MyString Host;
 		MyString Cookie;
@@ -372,22 +366,57 @@ namespace Sion
 		Response Send(Sion::Method method, MyString url) { SetHttpMethod(method); return Send(url); }
 
 		Response Send() { return Send(Url); }
-
+#ifndef SION_DISABLE_SSL 
+	private:
+		Response SendBySSL(Socket socket)
+		{
+			SSL_library_init();
+			auto method = TLSv1_1_client_method();
+			auto context = SSL_CTX_new(method);
+			auto ssl = SSL_new(context);
+			SSL_set_fd(ssl, socket);
+			SSL_connect(ssl);
+			SSL_write(ssl, Source.c_str(), Source.length());
+			auto resp = ReadResponse(socket, ssl);
+			SSL_shutdown(ssl);
+			SSL_free(ssl);
+			SSL_CTX_free(context);
+			return resp;
+		}
+#endif
+	public:
 		Response Send(MyString url)
 		{
-			check(Method.length() != 0);
-			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
+			check(Method.length(),"http request method is undefined");
 			std::smatch m;
+#ifndef SION_DISABLE_SSL 
+			std::regex urlParse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
+			regex_match(url, m, urlParse);
+			check(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
+			port = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
+#else
+			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
 			regex_match(url, m, urlParse);
 			check(m.size() == 5, "url格式不对或者是用了除http外的协议");
-			Host = m[2];
 			port = m[3].length() == 0 ? 80 : stoi(m[3]);
+#endif
+			Protocol = m[1];
+			Host = m[2];
 			Path = m[4].length() == 0 ? "/" : m[4].str();
 			Socket socket = GetSocket();
 			Connection(socket, Host);
 			BuildRequestString();
-			send(socket, Source.c_str(), int(Source.length()), 0);
-			return Response(ReadResponse(socket));
+			if (Protocol == "http")
+			{
+				send(socket, Source.c_str(), int(Source.length()), 0);
+				return Response(ReadResponse(socket));
+			}
+#ifndef SION_DISABLE_SSL
+			else // if (Protocol == "https")
+			{
+				return SendBySSL(socket);
+			}
+#endif
 		}
 
 	private:
@@ -432,13 +461,31 @@ namespace Sion
 				Throw("连接失败错误码：" + std::to_string(WSAGetLastError()));
 			}
 		}
-
+#ifndef SION_DISABLE_SSL 
+		MyString ReadResponse(Socket socket, SSL* ssl = nullptr)
+#else
 		MyString ReadResponse(Socket socket)
+#endif
 		{
 			const int bufSize = 1000;
 			std::array<char, bufSize> buf{ 0 };
+			auto Read = [&]()
+			{
+				int status = 0;
+				if (Protocol == "http")
+				{
+					status = recv(socket, buf.data(), bufSize - 1, 0);
+				}
+#ifndef SION_DISABLE_SSL 
+				else if (Protocol == "https")
+				{
+					status = SSL_read(ssl, buf.data(), bufSize - 1);
+				}
+#endif
+				check(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
+			};
 			Response resp;
-			recv(socket, buf.data(), bufSize - 1, 0);
+			Read();
 			resp.Source += buf.data();
 			resp.ParseFromSource();
 			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); //响应头长度
@@ -446,23 +493,14 @@ namespace Sion
 			{ //接收到的字符少于缓冲区长度，接收结束,也有可能是错误或者连接关闭
 				if (resp.IsChunked)
 				{
-					if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n")
-					{
-						break;
-					}
+					if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n") { break; }
 				}
 				else
 				{
-					if (resp.Source.length() - lenHeader == resp.ContentLength)
-					{
-						break;
-					}
+					if (resp.Source.length() - lenHeader == resp.ContentLength) { break; }
 				}
 				buf.fill(0);
-				if (int num = recv(socket, buf.data(), bufSize - 1, 0) < 0)
-				{
-					Throw("网络异常,Socket错误码：" + std::to_string(num));
-				}
+				Read();
 				resp.Source += buf.data();
 			}
 			closesocket(socket);

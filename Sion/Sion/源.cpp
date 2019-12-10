@@ -1,5 +1,5 @@
 #include <iostream>
-#define SION_DISABLE_SSL
+// #define SION_DISABLE_SSL
 #include "Sion.h"
 #include <ppltasks.h>
 using namespace Sion;
@@ -10,21 +10,34 @@ int main()
 	concurrency::create_task([]() {
 		try
 		{
+			return Fetch("https://api.zanllp.cn/plugin");
+		}
+		catch (const std::exception & e)
+		{
+			cout << e.what();
+		}
+		return Response();
+	}).then([](Response resp) {
+		cout << resp.ResponseBody << endl;
+	}).then([]() {
+		try
+		{
 			return Request()
-				.SetUrl("http://127.0.0.1:7001/user")
+				.SetUrl("https://api.zanllp.cn/socket/push?descriptor=fHXMHCQfcgNHDq2P")
 				.SetHttpMethod(Method::Post)
-				.SetBody(R"({"account":"zanllp","password":"ioflow@1598.auth"})")
-				.SetCookie("csrfToken=4CUb9Rjk0dgRXZRZorAqbTm8")
+				.SetBody(R"({"data": 233333,"msg":"hello world!"})")
 				.SetHeader("Content-Type", "application/json; charset=utf-8")
-				.SetHeader("x-csrf-token", "4CUb9Rjk0dgRXZRZorAqbTm8")
 				.Send();
 		}
 		catch (const std::exception & e)
 		{
 			cout << e.what();
 		}
+		return Response();
 	}).then([](Response resp) {
-		cout << resp.ResponseBody << endl;
+			cout << resp.ResponseBody << endl;
+	}).then([] {
+		exit(0);
 	});
-	system("pause");
+	this_thread::sleep_for(10s);
 }
