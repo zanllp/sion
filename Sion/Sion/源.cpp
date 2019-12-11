@@ -1,29 +1,48 @@
-#include<iostream>
-#define SION_DISABLE_SSL 
-#include"Sion.h"
+#include <iostream>
+// #define SION_DISABLE_SSL
+#include "Sion.h"
+#include <ppltasks.h>
 using namespace Sion;
 using namespace std;
 int main()
 {
-
-	try
-	{
-		// Get
-		cout << Fetch("http://www.baidu.com").Source << endl;;
-		// Post
-		auto resp = Request()
-			.SetUrl("http://127.0.0.1:7001/user")
-			.SetHttpMethod(Post)
-			.SetBody(R"({"account":"zanllp","password":"zanllp_pw"})")
-			.SetCookie("csrfToken=4CUb9Rjk0dgRXZRZorAqbTm8")
-			.SetHeader("Content-Type", "application/json; charset=utf-8")
-			.SetHeader("x-csrf-token", "4CUb9Rjk0dgRXZRZorAqbTm8")
-			.SendRequest();
+	// 使用ppl实现异步操作，sion内为阻塞io
+	concurrency::create_task([]() {
+		try
+		{
+			auto rec = chrono::system_clock::now();
+			auto resp = Fetch("https://www.zanllp.cn/static/js/4.a50ac19e.chunk.js");
+			cout << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - rec).count() << "ms" << endl;
+			return resp;
+		}
+		catch (const std::exception & e)
+		{
+			cout << e.what();
+		}
+			return Response();
+	}).then([](Response resp) {
+			cout << resp.Source.length() << endl;
+	}).then([]{
+		try
+		{
+			auto rec = chrono::system_clock::now();
+			auto resp = Request()
+						.SetUrl("https://api.zanllp.cn/socket/push?descriptor=fHXMHCQfcgNHDq2P")
+						.SetHttpMethod(Method::Post)
+						.SetBody(R"({"data": 233333,"msg":"hello world!"})")
+						.SetHeader("Content-Type", "application/json; charset=utf-8")
+						.Send();
+			cout << chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now() - rec).count() << "ms" << endl;
+			return resp;
+		}
+		catch (const std::exception & e)
+		{
+			cout << e.what();
+		}
+		return Response();
+	}).then([](Response resp) {
 		cout << resp.ResponseBody << endl;
-	}
-	catch (const std::exception & e)
-	{
-		cout << e.what();
-	}
-	system("pause");
+		exit(0);
+	});
+	this_thread::sleep_for(30s);
 }
