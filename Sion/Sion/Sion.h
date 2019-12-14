@@ -1,7 +1,7 @@
 #pragma once
+#pragma once
 #pragma warning(disable : 4267)
-#pragma warning(disable : 4018)
-#pragma warning(disable : 6031)
+#pragma warning(disable : 4244)
 #include <string>
 #include <map>
 #include <regex>
@@ -11,7 +11,7 @@
 #include <WS2tcpip.h>
 #include <winsock2.h>
 #include <Windows.h>
-#pragma comment(lib, "ws2_32.lib") //2
+#pragma comment(lib, "ws2_32.lib") 
 #else _linux
 #endif // WIN32 
 #ifndef SION_DISABLE_SSL 
@@ -25,6 +25,7 @@ namespace Sion
 	using std::string;
 	using std::pair;
 	using std::vector;
+	using std::array;
 
 	class MyString : public string
 	{
@@ -33,10 +34,11 @@ namespace Sion
 		~MyString() = default;
 		template<class T>
 		MyString(T&& arg) :string(std::forward<T>(arg)) { }
-		//ä½¿ç”¨å­—ç¬¦ä¸²åˆ†å‰²
-		//flag åˆ†å‰²æ ‡å¿—,è¿”å›çš„å­—ç¬¦ä¸²å‘é‡ä¼šå‰”é™¤,flagä¸è¦ç”¨charï¼Œä¼šé‡è½½ä¸æ˜ç¡®
-		//num åˆ†å‰²æ¬¡æ•°ï¼Œé»˜è®¤0å³åˆ†å‰²åˆ°ç»“æŸï¼Œä¾‹num=1,è¿”å›å¼€å¤´åˆ°flag,flagåˆ°ç»“æŸsize=2çš„å­—ç¬¦ä¸²å‘é‡
-		//skipEmpty è·³è¿‡ç©ºå­—ç¬¦ä¸²ï¼Œå³ä¸å‹å…¥length==0çš„å­—ç¬¦ä¸²
+
+		// Ê¹ÓÃ×Ö·û´®·Ö¸î
+		// flag ·Ö¸î±êÖ¾,·µ»ØµÄ×Ö·û´®ÏòÁ¿»áÌŞ³ı,flag²»ÒªÓÃchar£¬»áÖØÔØ²»Ã÷È·
+		// num ·Ö¸î´ÎÊı£¬Ä¬ÈÏ0¼´·Ö¸îµ½½áÊø£¬Àınum=1,·µ»Ø¿ªÍ·µ½flag,flagµ½½áÊøsize=2µÄ×Ö·û´®ÏòÁ¿
+		// skipEmpty Ìø¹ı¿Õ×Ö·û´®£¬¼´²»Ñ¹Èëlength==0µÄ×Ö·û´®
 		vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
 		{
 			vector<MyString> dataSet;
@@ -51,12 +53,12 @@ namespace Sion
 			for (int i = 0; i < Pos.size() + 1; i++)
 			{
 				if (dataSet.size() == num && Pos.size() > num&& num != 0)
-				{//æ»¡è¶³æ•°é‡ç›´æ¥æˆªåˆ°ç»“æŸ
+				{	// Âú×ãÊıÁ¿Ö±½Ó½Øµ½½áÊø
 					PushData(substr(Pos[dataSet.size()] + flag.size()));
 					break;
 				}
 				if (i == 0)
-				{ //ç¬¬ä¸€ä¸ªæ•°çš„ä½ç½®ä¸æ˜¯0çš„è¯è¡¥ä¸Š
+				{	// µÚÒ»¸öÊıµÄÎ»ÖÃ²»ÊÇ0µÄ»°²¹ÉÏ
 					PushData(substr(0, Pos[0]));
 				}
 				else if (i != Pos.size())
@@ -66,15 +68,15 @@ namespace Sion
 					PushData(substr(Left, Right));
 				}
 				else
-				{ //æœ€åä¸€ä¸ªæ ‡å¿—åˆ°ç»“æŸ
+				{	// ×îºóÒ»¸ö±êÖ¾µ½½áÊø
 					PushData(substr(*(--Pos.end()) + flag.size()));
 				}
 			}
 			return dataSet;
 		}
 
-		//æ¸…é™¤å‰åçš„å­—ç¬¦
-		//target éœ€è¦æ¸…é™¤çš„å­—ç¬¦é»˜è®¤ç©ºæ ¼
+		// Çå³ıÇ°ºóµÄ×Ö·û
+		// target ĞèÒªÇå³ıµÄ×Ö·ûÄ¬ÈÏ¿Õ¸ñ
 		MyString Trim(MyString target = " ")
 		{
 			auto left = find_first_not_of(target);
@@ -96,7 +98,20 @@ namespace Sion
 			return res;
 		}
 
-		//åŒ…å«å­—æ¯
+		MyString ToUpperCase()
+		{
+			MyString res = *this;
+			for (auto& i : res)
+			{
+				if (i >= 'a' && i <= 'z')
+				{
+					i -= 'a' - 'A';
+				}
+			}
+			return res;
+		}
+
+		// °üº¬×ÖÄ¸
 		bool HasLetter()
 		{
 			for (auto& x : *this)
@@ -110,11 +125,11 @@ namespace Sion
 			return false;
 		}
 
-		//è½¬æ¢åˆ°gbk ä¸­æ–‡æ˜¾ç¤ºä¹±ç è°ƒç”¨è¿™ä¸ª
+		// ×ª»»µ½gbk ÖĞÎÄÏÔÊ¾ÂÒÂëµ÷ÓÃÕâ¸ö
 		MyString ToGbk()
 		{
 #ifdef _WIN32
-			//ç”±blog.csdn.net/u012234115/article/details/83186386 æ”¹è¿‡æ¥
+			// ÓÉblog.csdn.net/u012234115/article/details/83186386 ¸Ä¹ıÀ´
 			auto src_str = c_str();
 			int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
 			wchar_t* wszGBK = new wchar_t[len + 1];
@@ -132,9 +147,9 @@ namespace Sion
 #endif // _WIN32
 		}
 
-		//è¿”å›æœç´¢åˆ°çš„æ‰€æœ‰ä½ç½®
-		//flag å®šä½æ ‡å¿—
-		//num æœç´¢æ•°é‡ï¼Œé»˜è®¤ç›´åˆ°ç»“æŸ
+		// ·µ»ØËÑË÷µ½µÄËùÓĞÎ»ÖÃ
+		// flag ¶¨Î»±êÖ¾
+		// num ËÑË÷ÊıÁ¿£¬Ä¬ÈÏÖ±µ½½áÊø
 		vector<int> FindAll(MyString flag, int num = -1)
 		{
 			vector<int> Result;
@@ -147,7 +162,7 @@ namespace Sion
 			return Result;
 		}
 
-		//å­—ç¬¦ä¸²æ›¿æ¢
+		// ×Ö·û´®Ìæ»»
 		MyString& Replace(MyString oldStr, MyString newStr)
 		{
 			int pos = find(oldStr);
@@ -159,7 +174,7 @@ namespace Sion
 		}
 	};
 
-	void Throw(MyString msg = "") { throw std::exception(msg.ToGbk().c_str()); }
+	void Throw(MyString msg = "") { throw std::exception(msg.c_str()); }
 
 	void check(bool condition, MyString msg = "")
 	{
@@ -179,10 +194,10 @@ namespace Sion
 		int err;
 		memset(&hints, 0, sizeof(addrinfo));
 		hints.ai_socktype = SOCK_STREAM;
-		hints.ai_family = AF_INET; //ipv4
+		hints.ai_family = AF_INET; // ipv4
 		if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
 		{
-			Throw("é”™è¯¯" + err + MyString(gai_strerror(err)));
+			Throw("´íÎó" + err + MyString(gai_strerror(err)));
 		}
 		addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
 		char str[INET_ADDRSTRLEN];
@@ -191,17 +206,17 @@ namespace Sion
 		return str;
 	}
 
-	Socket GetSocket() //httpè¯·æ±‚ä¸éœ€è¦å¡«ç«¯å£
+	Socket GetSocket()
 	{
-		//åˆå§‹åŒ–ã€‚,WSA windowså¼‚æ­¥å¥—æ¥å­—
+		// ³õÊ¼»¯¡£,WSA windowsÒì²½Ì×½Ó×Ö
 		WSADATA inet_WsaData;					   //
-		WSAStartup(MAKEWORD(2, 0), &inet_WsaData); //socket2.0ç‰ˆæœ¬
+		WSAStartup(MAKEWORD(2, 0), &inet_WsaData); // socket2.0°æ±¾
 		if (LOBYTE(inet_WsaData.wVersion) != 2 || HIBYTE(inet_WsaData.wVersion) != 0)
-		{ //é«˜ä½å­—èŠ‚æŒ‡æ˜å‰¯ç‰ˆæœ¬ã€ä½ä½å­—èŠ‚æŒ‡æ˜ä¸»ç‰ˆæœ¬
+		{	// ¸ßÎ»×Ö½ÚÖ¸Ã÷¸±°æ±¾¡¢µÍÎ»×Ö½ÚÖ¸Ã÷Ö÷°æ±¾
 			WSACleanup();
 			return -1;
 		}
-		auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); //ipv4,tcp,tcpæˆ–udpè¯¥å‚æ•°å¯ä¸º0
+		auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); // ipv4,tcp,tcp»òudp¸Ã²ÎÊı¿ÉÎª0
 		return tcp_socket;
 	}
 
@@ -248,22 +263,22 @@ namespace Sion
 	class Response
 	{
 	public:
-		// å“åº”æŠ¥æ–‡
-		MyString Source;
-		MyString Cookie;
-		MyString ProtocolVersion = "HTTP/1.1";
-		MyString Code = "200";
-		MyString Status = "ok";
-		MyString Server = "CppTinyServer";
-		MyString TransferEncoding;
-		int ContentLength = 0;
 		bool IsChunked = false;
-		Header ResponseHeader;
+		bool SaveByChar = false; // ¶ÔÓÚÎÄ±¾Ö±½ÓÓÃ×Ö·û´®±£´æ£¬ÆäËüÓÃcharÊı×é
+		int ContentLength = 0;
+		MyString Source; // ÏìÓ¦±¨ÎÄ
+		MyString Cookie;
+		MyString ProtocolVersion;
+		MyString Code;
+		MyString Status;
+		MyString TransferEncoding;
 		MyString ResponseBody;
+		vector<char> SourceChar;
+		Header ResponseHeader;
 		Response() = default;
 		~Response() = default;
 
-		Response(MyString source)
+		Response(MyString source) noexcept
 		{
 #ifndef UNICODE
 			Source = source.ToGbk();
@@ -273,16 +288,35 @@ namespace Sion
 			ParseFromSource();
 		}
 
-		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k); };
 
-		//è§£ææœåŠ¡å™¨å‘é€è¿‡æ¥çš„å“åº”
-		void ParseFromSource()
+		Response(Response&& resp) noexcept
+		{
+#ifndef UNICODE
+			Source = resp.Source.ToGbk();
+#else
+			Source = source;
+#endif // !UNICODE
+			SourceChar = std::move(resp.SourceChar);
+			ParseFromSource(resp.SaveByChar);
+		}
+
+
+
+
+
+
+
+		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k.ToLowerCase()); };
+
+		// ½âÎö·şÎñÆ÷·¢ËÍ¹ıÀ´µÄÏìÓ¦
+		// PreParse Ô¤½âÎö£¬Èç¹ûÎªtrueÇÒÊ¹ÓÃchar±£´æ¶øÇÒ²»ÊÇchunked±àÂëÄÇÃ´Ö»½âÎöÍ·²¿
+		void ParseFromSource(bool PreParse = false)
 		{
 			auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
 			auto data = MyString(HeaderStr).Split("\r\n");
 			if (data.size() == 0) { return; }
 			auto FirstLine = data[0].Split(" ", 2);
-			check(FirstLine.size() == 3, "è§£æé”™è¯¯\n" + Source);
+			check(FirstLine.size() == 3, "½âÎö´íÎó\n" + Source);
 			ProtocolVersion = FirstLine[0].Trim();
 			Code = FirstLine[1].Trim();
 			Status = FirstLine[2].Trim();
@@ -298,24 +332,66 @@ namespace Sion
 			MyString contentLen = HeaderValue("content-length");
 			ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
 			Cookie = HeaderValue("cookie");
-			Server = HeaderValue("server");
 			TransferEncoding = HeaderValue("transfer-encoding");
 			IsChunked = ContentLength == 0;
-			auto bodyPos = Source.find("\r\n\r\n");
-			if (bodyPos != -1 && bodyPos != Source.length() - 4)
+			auto ContentType = HeaderValue("content-type");
+			if (ContentType != "")
+			{	// Content-Type: text/html; charset=utf-8
+				auto type = ContentType.Split(";", 1)[0].Split("/", 1)[0].Trim();
+				SaveByChar = type != "text" && type != "application";
+				if (PreParse && SaveByChar && !IsChunked) { return; }
+			}
+			if (SaveByChar)
 			{
-				ResponseBody = Source.substr(bodyPos + 4);
-				if (IsChunked)
+				if (SourceChar.size() == 0) { return; }
+				const auto& sc = SourceChar;
+				vector<char> PureSouceChar;
+				// »ñÈ¡ÏÂÒ»¸ö\r\nµÄÎ»ÖÃ
+				int NRpos = 0;
+				auto GetNextNR = [&](int leap = 0)
 				{
-					auto Pos = ResponseBody.FindAll("\r\n");
-					MyString ResponseBodyClear;
-					for (int i = 0; i < (Pos.size() - 1) / 2; i++)
+					for (int i = NRpos + leap; i < (sc.size() - 1); i++)
 					{
-						int Left = Pos[i * 2] + 2;
-						int Right = Pos[i * 2 + 1] - Left;
-						ResponseBodyClear += ResponseBody.substr(Left, Right);
-					};
-					ResponseBody = ResponseBodyClear;
+						if (sc[i] == '\r' && sc[i + 1] == '\n')
+						{
+							NRpos = i;
+							return i;
+						}
+					}
+					return -1;
+				};
+				int Left = -2; // ÕâÀï-2ÊÇÒòÎªµÚÒ»¸öÊıÁ¿ÊÇ400\r\nÕâÑùµÄ£¬¶øÆäËüµÄÊÇ\r\n400\r\n¡£ËùÒÔÒª¶ÔµÚÒ»´Î½øĞĞ²¹³¥
+				int Right = GetNextNR();
+				while (Left != -1 && Right != -1)
+				{
+					auto count = string(sc.begin() + 2 + Left, sc.begin() + Right); // Ã¿¸ö·Ö¿é¿ªÍ·Ğ´µÄÊıÁ¿
+					if (count.length() == 0) { break; } // ×îºóÒ»¸ö 0\r\n\r\n£¬ÍË³ö
+					auto countNum = stoi(count, nullptr, 16); // ÄÇÊıÁ¿ÊÇ16½øÖÆ
+					auto chunkedStart = sc.begin() + Right + 2; // Ã¿¸ö·Ö¿éÕıÎÄµÄ¿ªÊ¼Î»ÖÃ
+					PureSouceChar.insert(PureSouceChar.end(), chunkedStart, chunkedStart + countNum);
+					Left = GetNextNR(countNum); //  ¸üĞÂÎ»ÖÃ
+					Right = GetNextNR(1);
+				}
+				SourceChar = PureSouceChar;
+			}
+			else
+			{
+				auto bodyPos = Source.find("\r\n\r\n");
+				if (bodyPos != -1 && bodyPos != Source.length() - 4)
+				{
+					ResponseBody = Source.substr(bodyPos + 4);
+					if (IsChunked)
+					{
+						auto Pos = ResponseBody.FindAll("\r\n");
+						MyString ResponseBodyClear;
+						for (int i = 0; i < (Pos.size() - 1) / 2; i++)
+						{
+							int Left = Pos[i * 2] + 2;
+							int Right = Pos[i * 2 + 1] - Left;
+							ResponseBodyClear += ResponseBody.substr(Left, Right);
+						};
+						ResponseBody = ResponseBodyClear;
+					}
 				}
 			}
 		}
@@ -331,11 +407,11 @@ namespace Sion
 		MyString ProtocolVersion = "HTTP/1.1";
 		MyString Protocol;
 		MyString IP;
+		MyString Url;
 		MyString Host;
 		MyString Cookie;
 		MyString RequestBody;
 		Header RequestHeader;
-		MyString Url;
 		Request() = default;
 		~Request() = default;
 
@@ -387,20 +463,21 @@ namespace Sion
 	public:
 		Response Send(MyString url)
 		{
-			check(Method.length(),"http request method is undefined");
+			check(Method.length(), "ÇëÇó·½·¨Î´¶¨Òå");
 			std::smatch m;
 #ifndef SION_DISABLE_SSL 
 			std::regex urlParse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
 			regex_match(url, m, urlParse);
-			check(m.size() == 5, "urlæ ¼å¼ä¸å¯¹æˆ–è€…æ˜¯ç”¨äº†é™¤http,httpså¤–çš„åè®®");
+			check(m.size() == 5, "url¸ñÊ½²»¶Ô»òÕßÊÇÓÃÁË³ıhttp,httpsÍâµÄĞ­Òé");
+			Protocol = m[1];
 			port = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
 #else
 			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
 			regex_match(url, m, urlParse);
-			check(m.size() == 5, "urlæ ¼å¼ä¸å¯¹æˆ–è€…æ˜¯ç”¨äº†é™¤httpå¤–çš„åè®®");
+			check(m.size() == 5, "url¸ñÊ½²»¶Ô»òÕßÊÇÓÃÁË³ıhttpÍâµÄĞ­Òé");
+			Protocol = m[1];
 			port = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
-			Protocol = m[1];
 			Host = m[2];
 			Path = m[4].length() == 0 ? "/" : m[4].str();
 			Socket socket = GetSocket();
@@ -409,7 +486,7 @@ namespace Sion
 			if (Protocol == "http")
 			{
 				send(socket, Source.c_str(), int(Source.length()), 0);
-				return Response(ReadResponse(socket));
+				return ReadResponse(socket);
 			}
 #ifndef SION_DISABLE_SSL
 			else // if (Protocol == "https")
@@ -448,9 +525,9 @@ namespace Sion
 			WCHAR wcIP[256];
 			memset(wcIP, 0, sizeof(wcIP));
 			MultiByteToWideChar(CP_ACP, 0, IP.c_str(), IP.length() + 1, wcIP, sizeof(wcIP) / sizeof(wcIP[0]));
-			check(InetPton(AF_INET, wcIP, &sa) != -1, "åœ°å€è½¬æ¢é”™è¯¯");
+			check(InetPton(AF_INET, wcIP, &sa) != -1, "µØÖ·×ª»»´íÎó");
 #else
-			check((InetPton(AF_INET, IP.c_str(), &sa) != -1), "åœ°å€è½¬æ¢é”™è¯¯");
+			check((InetPton(AF_INET, IP.c_str(), &sa) != -1), "µØÖ·×ª»»´íÎó");
 #endif
 			sockaddr_in saddr;
 			saddr.sin_family = AF_INET;
@@ -458,19 +535,20 @@ namespace Sion
 			saddr.sin_addr = sa;
 			if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
 			{
-				Throw("è¿æ¥å¤±è´¥é”™è¯¯ç ï¼š" + std::to_string(WSAGetLastError()));
+				Throw("Á¬½ÓÊ§°Ü´íÎóÂë£º" + std::to_string(WSAGetLastError()));
 			}
 		}
 #ifndef SION_DISABLE_SSL 
-		MyString ReadResponse(Socket socket, SSL* ssl = nullptr)
+		Response ReadResponse(Socket socket, SSL* ssl = nullptr)
 #else
 		MyString ReadResponse(Socket socket)
 #endif
 		{
-			const int bufSize = 1000;
-			std::array<char, bufSize> buf{ 0 };
+			const int bufSize = 1024;
+			array<char, bufSize> buf{ 0 };
 			auto Read = [&]()
 			{
+				buf.fill(0);
 				int status = 0;
 				if (Protocol == "http")
 				{
@@ -482,29 +560,57 @@ namespace Sion
 					status = SSL_read(ssl, buf.data(), bufSize - 1);
 				}
 #endif
-				check(status >= 0, "ç½‘ç»œå¼‚å¸¸,Socketé”™è¯¯ç ï¼š" + std::to_string(status));
+				check(status >= 0, "ÍøÂçÒì³£,Socket´íÎóÂë£º" + std::to_string(status));
+				return status;
 			};
 			Response resp;
 			Read();
 			resp.Source += buf.data();
-			resp.ParseFromSource();
-			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); //å“åº”å¤´é•¿åº¦
+			resp.ParseFromSource(true);
+			if (resp.SaveByChar)
+			{	// °Ñ³ıÍ·Íâ¶àÓàµÄÏìÓ¦Ìå²¿·ÖÒÆ¹ıÈ¥
+				auto bodyPos = resp.Source.find("\r\n\r\n");
+				auto startBody = buf.begin() + 4 + bodyPos;
+				resp.SourceChar.insert(resp.SourceChar.end(), startBody, --buf.end());
+			}
+			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); // ÏìÓ¦Í·³¤¶È
 			while (true)
-			{ //æ¥æ”¶åˆ°çš„å­—ç¬¦å°‘äºç¼“å†²åŒºé•¿åº¦ï¼Œæ¥æ”¶ç»“æŸ,ä¹Ÿæœ‰å¯èƒ½æ˜¯é”™è¯¯æˆ–è€…è¿æ¥å…³é—­
-				if (resp.IsChunked)
+			{	// ½ÓÊÕµ½µÄ×Ö·ûÉÙÓÚ»º³åÇø³¤¶È£¬½ÓÊÕ½áÊø,Ò²ÓĞ¿ÉÄÜÊÇ´íÎó»òÕßÁ¬½Ó¹Ø±Õ
+				if (resp.SaveByChar)
 				{
-					if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n") { break; }
+					if (resp.IsChunked)
+					{
+						auto start = resp.SourceChar.begin() + resp.SourceChar.size() - 7;
+						if (string(start, start + 7) == "\r\n0\r\n\r\n") { break; }
+					}
+					else
+					{
+						if (resp.SourceChar.size() == resp.ContentLength) { break; }
+					}
 				}
 				else
 				{
-					if (resp.Source.length() - lenHeader == resp.ContentLength) { break; }
+					if (resp.IsChunked)
+					{
+						if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n") { break; }
+					}
+					else
+					{
+						if (resp.Source.length() - lenHeader == resp.ContentLength) { break; }
+					}
 				}
-				buf.fill(0);
-				Read();
-				resp.Source += buf.data();
+				auto num = Read();
+				if (resp.SaveByChar)
+				{
+					resp.SourceChar.insert(resp.SourceChar.end(), buf.begin(), buf.begin() + num);
+				}
+				else
+				{
+					resp.Source += buf.data();
+				}
 			}
 			closesocket(socket);
-			return resp.Source;
+			return resp;
 		}
 	};
 
