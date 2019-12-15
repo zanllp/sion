@@ -2,6 +2,9 @@
 #pragma once
 #pragma warning(disable : 4267)
 #pragma warning(disable : 4244)
+#pragma warning(disable : 6031)
+#pragma warning(disable : 26451)
+#pragma warning(disable : 26444)
 #include <string>
 #include <map>
 #include <regex>
@@ -42,7 +45,8 @@ namespace Sion
 		vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true)
 		{
 			vector<MyString> dataSet;
-			auto PushData = [&](MyString line) {
+			auto PushData = [&](MyString line)
+			{
 				if (line.length() != 0 || !skipEmpty)
 				{
 					dataSet.push_back(line);
@@ -262,6 +266,8 @@ namespace Sion
 
 	class Response
 	{
+	private:
+		
 	public:
 		bool IsChunked = false;
 		bool SaveByChar = false; // 对于文本直接用字符串保存，其它用char数组
@@ -271,41 +277,34 @@ namespace Sion
 		MyString ProtocolVersion;
 		MyString Code;
 		MyString Status;
-		MyString TransferEncoding;
 		MyString ResponseBody;
 		vector<char> SourceChar;
 		Header ResponseHeader;
 		Response() = default;
 		~Response() = default;
+		MyString CharSet = "utf-8";
 
-		Response(MyString source) noexcept
-		{
 #ifndef UNICODE
-			Source = source.ToGbk();
-#else
-			Source = source;
-#endif // !UNICODE
+		Response(MyString source, bool convert2gbk = true) noexcept
+		{
+			if (convert2gbk)
+			{
+				CharSet = "gbk";
+				Source = source.ToGbk(); 
+			} 
+			else
+			{
+				Source = source;
+			}
 			ParseFromSource();
 		}
-
-
-		Response(Response&& resp) noexcept
-		{
-#ifndef UNICODE
-			Source = resp.Source.ToGbk();
 #else
-			Source = source;
-#endif // !UNICODE
-			SourceChar = std::move(resp.SourceChar);
-			ParseFromSource(resp.SaveByChar);
+		Response(MyString source) noexcept
+		{
+			Source = source; 
+			ParseFromSource();
 		}
-
-
-
-
-
-
-
+#endif // !UNICODE
 		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k.ToLowerCase()); };
 
 		// 解析服务器发送过来的响应
@@ -315,12 +314,14 @@ namespace Sion
 			auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
 			auto data = MyString(HeaderStr).Split("\r\n");
 			if (data.size() == 0) { return; }
+			// 第一行
 			auto FirstLine = data[0].Split(" ", 2);
 			check(FirstLine.size() == 3, "解析错误\n" + Source);
 			ProtocolVersion = FirstLine[0].Trim();
 			Code = FirstLine[1].Trim();
 			Status = FirstLine[2].Trim();
 			data.erase(data.begin());
+			// 头
 			for (auto x : data)
 			{
 				auto pair = x.Split(":", 1);
@@ -332,15 +333,20 @@ namespace Sion
 			MyString contentLen = HeaderValue("content-length");
 			ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
 			Cookie = HeaderValue("cookie");
-			TransferEncoding = HeaderValue("transfer-encoding");
 			IsChunked = ContentLength == 0;
 			auto ContentType = HeaderValue("content-type");
 			if (ContentType != "")
 			{	// Content-Type: text/html; charset=utf-8
-				auto type = ContentType.Split(";", 1)[0].Split("/", 1)[0].Trim();
-				SaveByChar = type != "text" && type != "application";
+				auto ContentSplit = ContentType.Split(";", 1);
+				auto type = ContentSplit[0].Split("/", 1)[0].Trim();
+				SaveByChar = type != "text" && type != "application"; // 解析看是文本还字节流
+				if (ContentSplit.size() != 1 && CharSet != "gbk") // 是gbk的话已经转过一次了，不用再管
+				{
+					CharSet = ContentSplit[1].Split("=", 1)[1].Trim();
+				}
 				if (PreParse && SaveByChar && !IsChunked) { return; }
 			}
+			// 响应体
 			if (SaveByChar)
 			{
 				if (SourceChar.size() == 0) { return; }
@@ -404,13 +410,13 @@ namespace Sion
 		MyString Source;
 		MyString Method;
 		MyString Path;
-		MyString ProtocolVersion = "HTTP/1.1";
 		MyString Protocol;
 		MyString IP;
 		MyString Url;
 		MyString Host;
 		MyString Cookie;
 		MyString RequestBody;
+		MyString ProtocolVersion = "HTTP/1.1";
 		Header RequestHeader;
 		Request() = default;
 		~Request() = default;
@@ -541,7 +547,7 @@ namespace Sion
 #ifndef SION_DISABLE_SSL 
 		Response ReadResponse(Socket socket, SSL* ssl = nullptr)
 #else
-		MyString ReadResponse(Socket socket)
+		Response ReadResponse(Socket socket)
 #endif
 		{
 			const int bufSize = 1024;
@@ -564,6 +570,7 @@ namespace Sion
 				return status;
 			};
 			Response resp;
+			// 读取解析头部信息
 			Read();
 			resp.Source += buf.data();
 			resp.ParseFromSource(true);
@@ -574,31 +581,36 @@ namespace Sion
 				resp.SourceChar.insert(resp.SourceChar.end(), startBody, --buf.end());
 			}
 			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); // 响应头长度
-			while (true)
-			{	// 接收到的字符少于缓冲区长度，接收结束,也有可能是错误或者连接关闭
+			// 检查是否接收完
+			auto CheckEnd = [&]
+			{
 				if (resp.SaveByChar)
 				{
 					if (resp.IsChunked)
 					{
 						auto start = resp.SourceChar.begin() + resp.SourceChar.size() - 7;
-						if (string(start, start + 7) == "\r\n0\r\n\r\n") { break; }
+						return string(start, start + 7) == "\r\n0\r\n\r\n";
 					}
 					else
 					{
-						if (resp.SourceChar.size() == resp.ContentLength) { break; }
+						return resp.SourceChar.size() == resp.ContentLength;
 					}
 				}
 				else
 				{
 					if (resp.IsChunked)
 					{
-						if (resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n") { break; }
+						return resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n";
 					}
 					else
 					{
-						if (resp.Source.length() - lenHeader == resp.ContentLength) { break; }
+						return resp.Source.length() - lenHeader == resp.ContentLength;
 					}
 				}
+			};
+			// 循环读取接收
+			while (!CheckEnd())
+			{
 				auto num = Read();
 				if (resp.SaveByChar)
 				{
@@ -610,7 +622,11 @@ namespace Sion
 				}
 			}
 			closesocket(socket);
-			return resp;
+			if (resp.SaveByChar && resp.IsChunked)
+			{	// 字节流且是分块编码的清除下
+				resp.ParseFromSource();
+			}
+			return resp.SaveByChar ? resp : Response(resp.Source); // 如果是字节流直接移动不需要转码，不是返回源让构造器再转码解析一次
 		}
 	};
 
@@ -618,5 +634,4 @@ namespace Sion
 	{
 		return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 	}
-
 } // namespace Sion
