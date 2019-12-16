@@ -235,10 +235,12 @@ namespace Sion
 			data = other;
 			return *this;
 		}
+		// 添加一个键值对到头中
 		void Add(MyString k, MyString v)
 		{
 			data.push_back({ k,v });
 		}
+		// 获取头的键所对应的所有值
 		vector<MyString> GetValue(MyString key)
 		{
 			vector<MyString> res;
@@ -251,6 +253,7 @@ namespace Sion
 			}
 			return res;
 		}
+		// 获取头的键所对应的值，以最后一个为准
 		MyString GetLastValue(MyString key)
 		{
 			for (int i = data.size() - 1; i >= 0; i--)
@@ -269,17 +272,17 @@ namespace Sion
 	private:
 
 	public:
-		bool IsChunked = false;
-		bool SaveByChar = false; // 对于文本直接用字符串保存，其它用char数组
-		int ContentLength = 0;
-		MyString Source; // 响应报文
-		MyString Cookie;
+		bool IsChunked = false; // 是否分块编码
+		bool SaveByCharVec = false; // 是否使用字符数组保存，对于文本直接用字符串保存，其它用char数组
+		int ContentLength = 0; // 正文长度
+		MyString Source; // 源响应报文
+		MyString Cookie; 
 		MyString ProtocolVersion;
 		MyString Code;
 		MyString Status;
-		MyString ResponseBody;
-		vector<char> SourceChar;
-		Header ResponseHeader;
+		MyString BodyStr; // 响应体，对于文本直接保存这
+		vector<char> BodyCharVec; // 响应体，对于二进制流保存在这
+		Header ResponseHeader; // 响应头
 		Response() = default;
 		~Response() = default;
 		MyString CharSet = "utf-8";
@@ -339,7 +342,7 @@ namespace Sion
 			{	// Content-Type: text/html; charset=utf-8
 				auto ContentSplit = ContentType.Split(";", 1);
 				auto type = ContentSplit[0].Split("/", 1)[0].Trim();
-				SaveByChar = type != "text" && type != "application"; // 解析看是文本还字节流
+				SaveByCharVec = type != "text" && type != "application"; // 解析看是文本还字节流
 				if (ContentSplit.size() != 1 && CharSet != "gbk") // 是gbk的话已经转过一次了，不用再管
 				{
 					CharSet = ContentSplit[1].Split("=", 1)[1].Trim().ToLowerCase();
@@ -347,19 +350,19 @@ namespace Sion
 			}
 			// 响应体，预解析的时候解析响应体
 			// 关闭预解析，或者是非分块且为字符串的时候就行解析，因为这种情况需要获取头的长度
-			if (!PreParse||(!IsChunked&&!SaveByChar)) 
+			if (!PreParse||(!IsChunked&&!SaveByCharVec)) 
 			{
-				ResponseBodyParse(); 
+				BodyStrParse(); 
 			}
 			
 		}
 
-		void ResponseBodyParse()
+		void BodyStrParse()
 		{
-			if (SaveByChar)
+			if (SaveByCharVec)
 			{
-				if (SourceChar.size() == 0) { return; }
-				const auto& sc = SourceChar;
+				if (BodyCharVec.size() == 0) { return; }
+				const auto& sc = BodyCharVec;
 				vector<char> PureSouceChar;
 				// 获取下一个\r\n的位置
 				int NRpos = 0;
@@ -387,18 +390,18 @@ namespace Sion
 					Left = GetNextNR(countNum); //  更新位置
 					Right = GetNextNR(1);
 				}
-				SourceChar = PureSouceChar;
-				ContentLength = SourceChar.size();
+				BodyCharVec = PureSouceChar;
+				ContentLength = BodyCharVec.size();
 			}
 			else
 			{
 				auto bodyPos = Source.find("\r\n\r\n");
 				if (bodyPos != -1 && bodyPos != Source.length() - 4)
 				{
-					ResponseBody = Source.substr(bodyPos + 4);
-					if (IsChunked && ResponseBody != "")
+					BodyStr = Source.substr(bodyPos + 4);
+					if (IsChunked && BodyStr != "")
 					{
-						const auto& rb = ResponseBody;
+						const auto& rb = BodyStr;
 						MyString pureStr;
 						// 获取下一个\r\n的位置
 						int NRpos = 0;
@@ -419,8 +422,8 @@ namespace Sion
 							Left = GetNextNR(countNum); //  更新位置
 							Right = GetNextNR(1);
 						}
-						ResponseBody = pureStr;
-						ContentLength = ResponseBody.length();
+						BodyStr = pureStr;
+						ContentLength = BodyStr.length();
 					}
 				}
 			}
@@ -598,26 +601,26 @@ namespace Sion
 			Read();
 			resp.Source += buf.data();
 			resp.ParseFromSource(true);
-			if (resp.SaveByChar)
+			if (resp.SaveByCharVec)
 			{	// 把除头外多余的响应体部分移过去
 				auto bodyPos = resp.Source.find("\r\n\r\n");
 				auto startBody = buf.begin() + 4 + bodyPos;
-				resp.SourceChar.insert(resp.SourceChar.end(), startBody, --buf.end());
+				resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, --buf.end());
 			}
-			auto lenHeader = resp.Source.length() - resp.ResponseBody.length(); // 响应头长度
+			auto lenHeader = resp.Source.length() - resp.BodyStr.length(); // 响应头长度
 			// 检查是否接收完
 			auto CheckEnd = [&]
 			{
-				if (resp.SaveByChar)
+				if (resp.SaveByCharVec)
 				{
 					if (resp.IsChunked)
 					{
-						auto start = resp.SourceChar.begin() + resp.SourceChar.size() - 7;
+						auto start = resp.BodyCharVec.begin() + resp.BodyCharVec.size() - 7;
 						return string(start, start + 7) == "\r\n0\r\n\r\n";
 					}
 					else
 					{
-						return resp.SourceChar.size() == resp.ContentLength;
+						return resp.BodyCharVec.size() == resp.ContentLength;
 					}
 				}
 				else
@@ -636,9 +639,9 @@ namespace Sion
 			while (!CheckEnd())
 			{
 				auto num = Read();
-				if (resp.SaveByChar)
+				if (resp.SaveByCharVec)
 				{
-					resp.SourceChar.insert(resp.SourceChar.end(), buf.begin(), buf.begin() + num);
+					resp.BodyCharVec.insert(resp.BodyCharVec.end(), buf.begin(), buf.begin() + num);
 				}
 				else
 				{
@@ -646,7 +649,7 @@ namespace Sion
 				}
 			}
 			closesocket(socket);
-			if (resp.SaveByChar)
+			if (resp.SaveByCharVec)
 			{
 				if (resp.IsChunked)
 				{	// 字节流且是分块编码的清除下
@@ -657,7 +660,7 @@ namespace Sion
 			{
 				resp.ParseFromSource();
 #ifndef UNICODE
-				resp.ResponseBody = resp.ResponseBody.ToGbk();
+				resp.BodyStr = resp.BodyStr.ToGbk();
 				resp.CharSet = "gbk";
 #endif // !UNICODE
 			}

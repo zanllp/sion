@@ -37,7 +37,7 @@ task<void> RestTask()
 					.SetHeader("Content-Type", "application/json; charset=utf-8")
 					.Send();
 			}))
-		.then([](Response resp) { cout << "-- 响应体: " << resp.ResponseBody << endl; })
+		.then([](Response resp) { cout << "-- 响应体: " << resp.BodyStr<< endl; })
 		.then([] { return Fetch("https://www.themepark.com.cn/"); })
 		.then([](Response resp) { cout << "-- 分块text: " << resp.ContentLength << endl; })
 		.then(ErrorBoundaries); // 捕获运行时可能产生的异常
@@ -49,20 +49,20 @@ task<void> DownloadTask()
 	{
 		auto resp = Fetch("http://www.httpwatch.com/httpgallery/chunked/chunkedimage.aspx");
 		ofstream file(R"(分块.jpeg)", ios::binary);
-		file.write(resp.SourceChar.data(), resp.SourceChar.size() * sizeof(char));
+		file.write(resp.BodyCharVec.data(), resp.BodyCharVec.size() * sizeof(char));
 	};
 	auto DownloadHuaji = []
 	{
 		auto resp = Fetch("https://static.zanllp.cn/94da3a6b32e0ddcad844aca6a8876da2ecba8cb3c7094c3ad10996b28311e4b50ab455ee3d6d55fb50dc4e3c62224f4a20a4ddb1.gif");
 		ofstream file(R"(滑稽.gif)", ios::binary);
-		file.write(resp.SourceChar.data(), resp.SourceChar.size() * sizeof(char));
+		file.write(resp.BodyCharVec.data(), resp.BodyCharVec.size() * sizeof(char));
 	};
 	return create_task([] { cout << "下载任务开始" << endl; })
 		.then(DownloadChunkedFile)
 		.then([] { cout << "分块文件下载完成" << endl; })
 		.then(DownloadHuaji)
 		.then([] { cout << "滑稽.gif下载完成" << endl; })
-		;// .then(ErrorBoundaries);
+		.then(ErrorBoundaries);
 }
 
 
