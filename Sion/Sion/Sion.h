@@ -22,6 +22,10 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #endif // !SION_DISABLE_SSL 
+#include <codecvt>
+#include <string>
+#include <locale>
+#include <vector>
 namespace Sion
 {
 
@@ -91,28 +95,16 @@ namespace Sion
 
 		MyString ToLowerCase()
 		{
-			MyString res = *this;
-			for (auto& i : res)
-			{
-				if (i >= 'A' && i <= 'Z')
-				{
-					i += 'a' - 'A';
-				}
-			}
-			return res;
+			MyString s = *this;
+			std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::tolower(c); });
+			return s;
 		}
 
 		MyString ToUpperCase()
 		{
-			MyString res = *this;
-			for (auto& i : res)
-			{
-				if (i >= 'a' && i <= 'z')
-				{
-					i -= 'a' - 'A';
-				}
-			}
-			return res;
+			MyString s = *this;
+			std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return std::toupper(c); });
+			return s;
 		}
 
 		// 包含字母
@@ -132,7 +124,8 @@ namespace Sion
 		// 转换到gbk 中文显示乱码调用这个
 		MyString ToGbk()
 		{
-#ifdef _WIN32
+			return MyString::utf8_to_gb2312(*this);
+#ifdef _WIN32_
 			// 由blog.csdn.net/u012234115/article/details/83186386 改过来
 			auto src_str = c_str();
 			int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
@@ -166,25 +159,54 @@ namespace Sion
 			return Result;
 		}
 
-		// 字符串替换
-		MyString& Replace(MyString oldStr, MyString newStr)
+			static std::string utf8_to_gb2312(std::string const& strUtf8)
 		{
-			int pos = find(oldStr);
-			if (pos != -1)
+			std::wstring_convert<std::codecvt_utf8<wchar_t>> cutf8;
+			std::wstring wTemp = cutf8.from_bytes(strUtf8);
+#ifdef _MSC_VER
+			std::locale loc("zh-CN");
+#else
+			std::locale loc("zh_CN.GB18030");
+#endif
+			const wchar_t* pwszNext = nullptr;
+			char* pszNext = nullptr;
+			mbstate_t state = {};
+			std::vector<char> buff(wTemp.size() * 2);
+			int res = std::use_facet<std::codecvt<wchar_t, char, mbstate_t> >
+				(loc).out(state,
+					wTemp.data(), wTemp.data() + wTemp.size(), pwszNext,
+					buff.data(), buff.data() + buff.size(), pszNext);
+
+			if (std::codecvt_base::ok == res)
 			{
-				replace(pos, oldStr.length(), newStr);
+				return std::string(buff.data(), pszNext);
 			}
-			return *this;
+			return "";
+		}
+
+		// 字符串替换
+		// oldStr 被替换的字符串
+		// newStr 新换上的字符串
+		// count 替换次数，默认1，大于0时替换到足够次数或找不到旧字符串为止，小于0时替换到结束
+		MyString& Replace(MyString oldStr, MyString newStr, int count = 1)
+		{
+			if (count == 0) { return *this; }
+			int pos = find(oldStr);
+			if (pos == string::npos) { return *this; }
+			replace(pos, oldStr.length(), newStr);
+			return  Replace(oldStr, newStr, count < 0 ? -1 : count - 1);
 		}
 	};
 
-	void Throw(MyString msg = "") { throw std::exception(msg.c_str()); }
+	template<typename ExceptionType>
+	void Throw(MyString msg = "") { throw ExceptionType(msg.c_str()); }
 
+	template<typename ExceptionType = std::exception>
 	void check(bool condition, MyString msg = "")
 	{
 		if (!condition)
 		{
-			Throw(msg);
+			Throw<ExceptionType>(msg);
 		}
 	}
 	using Socket = SOCKET;
@@ -201,7 +223,7 @@ namespace Sion
 		hints.ai_family = AF_INET; // ipv4
 		if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
 		{
-			Throw("错误" + err + MyString(gai_strerror(err)));
+			Throw<std::runtime_error>("错误" + err + MyString(gai_strerror(err)));
 		}
 		addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
 		char str[INET_ADDRSTRLEN];
@@ -276,7 +298,7 @@ namespace Sion
 		bool SaveByCharVec = false; // 是否使用字符数组保存，对于文本直接用字符串保存，其它用char数组
 		int ContentLength = 0; // 正文长度
 		MyString Source; // 源响应报文
-		MyString Cookie; 
+		MyString Cookie;
 		MyString ProtocolVersion;
 		MyString Code;
 		MyString Status;
@@ -319,7 +341,7 @@ namespace Sion
 			if (data.size() == 0) { return; }
 			// 第一行
 			auto FirstLine = data[0].Split(" ", 2);
-			check(FirstLine.size() == 3, "解析错误\n" + Source);
+			check<std::runtime_error>(FirstLine.size() == 3, "解析错误\n" + Source);
 			ProtocolVersion = FirstLine[0].Trim();
 			Code = FirstLine[1].Trim();
 			Status = FirstLine[2].Trim();
@@ -350,11 +372,11 @@ namespace Sion
 			}
 			// 响应体，预解析的时候解析响应体
 			// 关闭预解析，或者是非分块且为字符串的时候就行解析，因为这种情况需要获取头的长度
-			if (!PreParse||(!IsChunked&&!SaveByCharVec)) 
+			if (!PreParse || (!IsChunked && !SaveByCharVec))
 			{
-				BodyStrParse(); 
+				BodyStrParse();
 			}
-			
+
 		}
 
 		void BodyStrParse()
@@ -496,18 +518,18 @@ namespace Sion
 	public:
 		Response Send(MyString url)
 		{
-			check(Method.length(), "请求方法未定义");
+			check<std::invalid_argument>(Method.length(), "请求方法未定义");
 			std::smatch m;
 #ifndef SION_DISABLE_SSL 
 			std::regex urlParse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
 			regex_match(url, m, urlParse);
-			check(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
+			check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
 			Protocol = m[1];
 			port = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
 #else
 			std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
 			regex_match(url, m, urlParse);
-			check(m.size() == 5, "url格式不对或者是用了除http外的协议");
+			check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
 			Protocol = m[1];
 			port = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
@@ -558,9 +580,9 @@ namespace Sion
 			WCHAR wcIP[256];
 			memset(wcIP, 0, sizeof(wcIP));
 			MultiByteToWideChar(CP_ACP, 0, IP.c_str(), IP.length() + 1, wcIP, sizeof(wcIP) / sizeof(wcIP[0]));
-			check(InetPton(AF_INET, wcIP, &sa) != -1, "地址转换错误");
+			check<std::invalid_argument>(InetPton(AF_INET, wcIP, &sa) != -1, "地址转换错误");
 #else
-			check((InetPton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
+			check<std::invalid_argument>((InetPton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
 #endif
 			sockaddr_in saddr;
 			saddr.sin_family = AF_INET;
@@ -568,7 +590,7 @@ namespace Sion
 			saddr.sin_addr = sa;
 			if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
 			{
-				Throw("连接失败错误码：" + std::to_string(WSAGetLastError()));
+				Throw<std::runtime_error>("连接失败错误码：" + std::to_string(WSAGetLastError()));
 			}
 		}
 #ifndef SION_DISABLE_SSL 
@@ -593,7 +615,7 @@ namespace Sion
 					status = SSL_read(ssl, buf.data(), bufSize - 1);
 				}
 #endif
-				check(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
+				check<std::runtime_error>(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
 				return status;
 			};
 			Response resp;

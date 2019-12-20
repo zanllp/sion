@@ -1,7 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <functional>
-//#define SION_DISABLE_SSL
+// #define SION_DISABLE_SSL
 #include "Sion.h"
 #include <ppltasks.h>
 #pragma warning(disable : 26444)
@@ -37,10 +37,10 @@ task<void> RestTask()
 					.SetHeader("Content-Type", "application/json; charset=utf-8")
 					.Send();
 			}))
-		.then([](Response resp) { cout << "-- 响应体: " << resp.BodyStr<< endl; })
-		.then([] { return Fetch("https://www.themepark.com.cn/"); })
-		.then([](Response resp) { cout << "-- 分块text: " << resp.ContentLength << endl; })
-		.then(ErrorBoundaries); // 捕获运行时可能产生的异常
+		.then([](Response resp) { cout << "-- 响应体: " << resp.BodyStr << endl; })
+				.then([] { return Fetch("https://www.themepark.com.cn/"); })
+				.then([](Response resp) { cout << "-- 分块text: " << resp.ContentLength << endl; })
+				.then(ErrorBoundaries); // 捕获运行时可能产生的异常
 }
 
 task<void> DownloadTask()
@@ -68,6 +68,7 @@ task<void> DownloadTask()
 
 int main()
 {
+
 	vector<task<void>> tasks{ DownloadTask(),RestTask() };
 	when_all(tasks.begin(), tasks.end()).wait();
 }
