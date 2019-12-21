@@ -28,7 +28,6 @@
 #include <vector>
 namespace Sion
 {
-
 	using std::string;
 	using std::pair;
 	using std::vector;
@@ -121,29 +120,17 @@ namespace Sion
 			return false;
 		}
 
-		// 转换到gbk 中文显示乱码调用这个
+		// 转换到gbk 
 		MyString ToGbk()
 		{
+			// 跨平台但是只能c++14及以下,本地api:blog.csdn.net/u012234115/article/details/83186386
 			return MyString::utf8_to_gb2312(*this);
-#ifdef _WIN32_
-			// 由blog.csdn.net/u012234115/article/details/83186386 改过来
-			auto src_str = c_str();
-			int len = MultiByteToWideChar(CP_UTF8, 0, src_str, -1, NULL, 0);
-			wchar_t* wszGBK = new wchar_t[len + 1];
-			memset(wszGBK, 0, len * 2 + 2);
-			MultiByteToWideChar(CP_UTF8, 0, src_str, -1, wszGBK, len);
-			len = WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, NULL, 0, NULL, NULL);
-			char* szGBK = new char[len + 1];
-			memset(szGBK, 0, len + 1);
-			WideCharToMultiByte(CP_ACP, 0, wszGBK, -1, szGBK, len, NULL, NULL);
-			MyString result(szGBK);
-			if (wszGBK) delete[] wszGBK;
-			if (szGBK) delete[] szGBK;
-			return result;
-#else
-#endif // _WIN32
 		}
 
+		MyString ToUtf8()
+		{
+			return MyString::gb2312_to_utf8(*this);
+		}
 		// 返回搜索到的所有位置
 		// flag 定位标志
 		// num 搜索数量，默认直到结束
@@ -159,7 +146,31 @@ namespace Sion
 			return Result;
 		}
 
-			static std::string utf8_to_gb2312(std::string const& strUtf8)
+		static std::string gb2312_to_utf8(std::string const& strGb2312)
+		{
+			// src:www.zhihu.com/question/61139105/answer/711597486
+			std::vector<wchar_t> buff(strGb2312.size());
+#ifdef _MSC_VER
+			std::locale loc("zh-CN");
+#else
+			std::locale loc("zh_CN.GB18030");
+#endif
+			wchar_t* pwszNext = nullptr;
+			const char* pszNext = nullptr;
+			mbstate_t state = {};
+			int res = std::use_facet<std::codecvt<wchar_t, char, mbstate_t> >
+				(loc).in(state,
+					strGb2312.data(), strGb2312.data() + strGb2312.size(), pszNext,
+					buff.data(), buff.data() + buff.size(), pwszNext);
+			if (std::codecvt_base::ok == res)
+			{
+				std::wstring_convert<std::codecvt_utf8<wchar_t>> cutf8;
+				return cutf8.to_bytes(std::wstring(buff.data(), pwszNext));
+			}
+			return "";
+		}
+
+		static std::string utf8_to_gb2312(std::string const& strUtf8)
 		{
 			std::wstring_convert<std::codecvt_utf8<wchar_t>> cutf8;
 			std::wstring wTemp = cutf8.from_bytes(strUtf8);
@@ -170,13 +181,12 @@ namespace Sion
 #endif
 			const wchar_t* pwszNext = nullptr;
 			char* pszNext = nullptr;
-			mbstate_t state = {};
+			std::mbstate_t mb = std::mbstate_t();
 			std::vector<char> buff(wTemp.size() * 2);
 			int res = std::use_facet<std::codecvt<wchar_t, char, mbstate_t> >
-				(loc).out(state,
+				(loc).out(mb,
 					wTemp.data(), wTemp.data() + wTemp.size(), pwszNext,
 					buff.data(), buff.data() + buff.size(), pszNext);
-
 			if (std::codecvt_base::ok == res)
 			{
 				return std::string(buff.data(), pszNext);
