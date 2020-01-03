@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Sion.h" />
+    <ClInclude Include="sion.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="源.cpp" />
@@ -29,6 +29,7 @@
     <ProjectGuid>{287824C2-952A-4E12-95B1-71DD9ACAFAA2}</ProjectGuid>
     <RootNamespace>Sion</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>sion</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">

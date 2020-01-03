@@ -26,7 +26,7 @@
 #include <string>
 #include <locale>
 #include <vector>
-namespace Sion
+namespace sion
 {
 	using std::string;
 	using std::pair;
@@ -313,33 +313,17 @@ namespace Sion
 		MyString Code;
 		MyString Status;
 		MyString BodyStr; // 响应体，对于文本直接保存这
+		MyString CharSet ;
 		vector<char> BodyCharVec; // 响应体，对于二进制流保存在这
 		Header ResponseHeader; // 响应头
 		Response() = default;
 		~Response() = default;
-		MyString CharSet = "utf-8";
 
-#ifndef UNICODE
-		Response(MyString source, bool convert2gbk = true) noexcept
-		{
-			if (convert2gbk)
-			{
-				CharSet = "gbk";
-				Source = source.ToGbk();
-			}
-			else
-			{
-				Source = source;
-			}
-			ParseFromSource();
-		}
-#else
 		Response(MyString source) noexcept
 		{
 			Source = source;
 			ParseFromSource();
 		}
-#endif // !UNICODE
 		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k.ToLowerCase()); };
 
 		// 解析服务器发送过来的响应
@@ -375,9 +359,9 @@ namespace Sion
 				auto ContentSplit = ContentType.Split(";", 1);
 				auto type = ContentSplit[0].Split("/", 1)[0].Trim();
 				SaveByCharVec = type != "text" && type != "application"; // 解析看是文本还字节流
-				if (ContentSplit.size() != 1 && CharSet != "gbk") // 是gbk的话已经转过一次了，不用再管
+				if (ContentSplit.size() != 1) // 是gbk的话已经转过一次了，不用再管
 				{
-					CharSet = ContentSplit[1].Split("=", 1)[1].Trim().ToLowerCase();
+					CharSet = ContentSplit[1].Split("=", 1)[1].Trim();
 				}
 			}
 			// 响应体，预解析的时候解析响应体
@@ -480,7 +464,7 @@ namespace Sion
 		Request() = default;
 		~Request() = default;
 
-		Request& SetHttpMethod(Sion::Method method)
+		Request& SetHttpMethod(sion::Method method)
 		{
 			switch (method)
 			{
@@ -504,7 +488,7 @@ namespace Sion
 
 		Request& SetHeader(MyString k, MyString v) { RequestHeader.Add(k, v); return *this; }
 
-		Response Send(Sion::Method method, MyString url) { SetHttpMethod(method); return Send(url); }
+		Response Send(sion::Method method, MyString url) { SetHttpMethod(method); return Send(url); }
 
 		Response Send() { return Send(Url); }
 #ifndef SION_DISABLE_SSL 
@@ -691,10 +675,6 @@ namespace Sion
 			else
 			{
 				resp.ParseFromSource();
-#ifndef UNICODE
-				resp.BodyStr = resp.BodyStr.ToGbk();
-				resp.CharSet = "gbk";
-#endif // !UNICODE
 			}
 			return resp;
 		}

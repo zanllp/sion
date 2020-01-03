@@ -20,7 +20,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Sion.h">
+    <ClInclude Include="sion.h">
       <Filter>源文件</Filter>
     </ClInclude>
   </ItemGroup>
