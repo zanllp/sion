@@ -68,7 +68,6 @@ task<void> DownloadTask()
 
 int main()
 {
-	
 	vector<task<void>> tasks{ DownloadTask(),RestTask() };
 	when_all(tasks.begin(), tasks.end()).wait();
 }

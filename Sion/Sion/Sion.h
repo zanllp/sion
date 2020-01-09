@@ -1,5 +1,4 @@
 #pragma once
-#pragma once
 #pragma warning(disable : 4267)
 #pragma warning(disable : 4244)
 #pragma warning(disable : 6031)
@@ -275,6 +274,7 @@ namespace sion
 		// 获取头的键所对应的所有值
 		vector<MyString> GetValue(MyString key)
 		{
+			key = key.ToLowerCase();
 			vector<MyString> res;
 			for (auto& i : data)
 			{
@@ -288,6 +288,7 @@ namespace sion
 		// 获取头的键所对应的值，以最后一个为准
 		MyString GetLastValue(MyString key)
 		{
+			key = key.ToLowerCase();
 			for (int i = data.size() - 1; i >= 0; i--)
 			{
 				if (data[i].first == key)
@@ -301,7 +302,6 @@ namespace sion
 
 	class Response
 	{
-	private:
 
 	public:
 		bool IsChunked = false; // 是否分块编码
@@ -313,7 +313,7 @@ namespace sion
 		MyString Code;
 		MyString Status;
 		MyString BodyStr; // 响应体，对于文本直接保存这
-		MyString CharSet ;
+		MyString CharSet;
 		vector<char> BodyCharVec; // 响应体，对于二进制流保存在这
 		Header ResponseHeader; // 响应头
 		Response() = default;
@@ -324,11 +324,27 @@ namespace sion
 			Source = source;
 			ParseFromSource();
 		}
-		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k.ToLowerCase()); };
+		MyString HeaderValue(MyString k) { return ResponseHeader.GetLastValue(k); };
 
 		// 解析服务器发送过来的响应
 		// PreParse 预解析，如果为true且使用char保存而且不是chunked编码那么只解析头部
 		void ParseFromSource(bool PreParse = false)
+		{
+			// 头和首行一次就够
+			if (ResponseHeader.data.size() == 0)
+			{
+				HeaderAndFirstLineParse();
+			}
+			// 响应体，预解析的时候解析响应体
+			// 关闭预解析，或者是非分块且为字符串的时候就行解析，因为这种情况需要获取头的长度
+			if (!PreParse || (!IsChunked && !SaveByCharVec))
+			{
+				BodyStrParse();
+			}
+		}
+
+	private:
+		void HeaderAndFirstLineParse()
 		{
 			auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
 			auto data = MyString(HeaderStr).Split("\r\n");
@@ -351,8 +367,8 @@ namespace sion
 			}
 			MyString contentLen = HeaderValue("content-length");
 			ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
-			Cookie = HeaderValue("cookie");
 			IsChunked = ContentLength == 0;
+			Cookie = HeaderValue("cookie");
 			auto ContentType = HeaderValue("content-type");
 			if (ContentType != "")
 			{	// Content-Type: text/html; charset=utf-8
@@ -364,21 +380,14 @@ namespace sion
 					CharSet = ContentSplit[1].Split("=", 1)[1].Trim();
 				}
 			}
-			// 响应体，预解析的时候解析响应体
-			// 关闭预解析，或者是非分块且为字符串的时候就行解析，因为这种情况需要获取头的长度
-			if (!PreParse || (!IsChunked && !SaveByCharVec))
-			{
-				BodyStrParse();
-			}
-
 		}
 
 		void BodyStrParse()
 		{
 			if (SaveByCharVec)
 			{
-				if (BodyCharVec.size() == 0) { return; }
 				const auto& sc = BodyCharVec;
+				if (sc.size() == 0) { return; }
 				vector<char> PureSouceChar;
 				// 获取下一个\r\n的位置
 				int NRpos = 0;
@@ -407,7 +416,7 @@ namespace sion
 					Right = GetNextNR(1);
 				}
 				BodyCharVec = PureSouceChar;
-				ContentLength = BodyCharVec.size();
+				ContentLength = PureSouceChar.size();
 			}
 			else
 			{
@@ -614,14 +623,14 @@ namespace sion
 			};
 			Response resp;
 			// 读取解析头部信息
-			Read();
+			auto num = Read();
 			resp.Source += buf.data();
 			resp.ParseFromSource(true);
 			if (resp.SaveByCharVec)
 			{	// 把除头外多余的响应体部分移过去
 				auto bodyPos = resp.Source.find("\r\n\r\n");
 				auto startBody = buf.begin() + 4 + bodyPos;
-				resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, --buf.end());
+				resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, buf.begin() + num);
 			}
 			auto lenHeader = resp.Source.length() - resp.BodyStr.length(); // 响应头长度
 			// 检查是否接收完
@@ -654,7 +663,7 @@ namespace sion
 			// 循环读取接收
 			while (!CheckEnd())
 			{
-				auto num = Read();
+				num = Read();
 				if (resp.SaveByCharVec)
 				{
 					resp.BodyCharVec.insert(resp.BodyCharVec.end(), buf.begin(), buf.begin() + num);
@@ -669,6 +678,7 @@ namespace sion
 			{
 				if (resp.IsChunked)
 				{	// 字节流且是分块编码的清除下
+					
 					resp.ParseFromSource();
 				}
 			}
