@@ -39,7 +39,11 @@ task<void> RestTask()
 			}))
 		.then([](Response resp) { cout << "-- 响应体: " << resp.BodyStr.ToGbk() << endl; })
 				.then([] { return Fetch("https://www.themepark.com.cn/"); })
-				.then([](Response resp) { cout << "-- 分块text: " << resp.ContentLength << endl; })
+				.then([](Response resp)
+					{
+						ofstream file(R"(23333.html)", ios::binary);
+						file.write(resp.BodyStr.data(), resp.ContentLength * sizeof(char));
+					})
 				.then(ErrorBoundaries); // 捕获运行时可能产生的异常
 }
 

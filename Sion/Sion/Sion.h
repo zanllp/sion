@@ -9,6 +9,9 @@
 #include <regex>
 #include <array>
 #include <vector>
+#include <codecvt>
+#include <locale>
+#include <mutex>
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <winsock2.h>
@@ -21,16 +24,13 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #endif // !SION_DISABLE_SSL 
-#include <codecvt>
-#include <string>
-#include <locale>
-#include <vector>
 namespace sion
 {
 	using std::string;
 	using std::pair;
 	using std::vector;
 	using std::array;
+	using std::map;
 
 	class MyString : public string
 	{
@@ -220,7 +220,23 @@ namespace sion
 	}
 	using Socket = SOCKET;
 
-	enum class Method { Get, Post, Put, Delete };
+	class Socket_
+	{
+
+	};
+
+	class SocketFactory
+	{
+		static std::mutex mu;
+
+		static map<MyString, Socket> SocketAll;
+
+		static Socket Get(MyString host)
+		{
+			std::lock_guard<std::mutex>lock(mu);
+		
+		}
+	};
 
 	MyString GetIpByHost(MyString hostname)
 	{
@@ -299,6 +315,8 @@ namespace sion
 			return "";
 		}
 	};
+
+	enum class Method { Get, Post, Put, Delete };
 
 	class Response
 	{
@@ -408,7 +426,7 @@ namespace sion
 				while (Left != -1 && Right != -1)
 				{
 					auto count = string(sc.begin() + 2 + Left, sc.begin() + Right); // 每个分块开头写的数量
-					if (string(count.c_str()).size() == 0) { break; } // 最后一个 0\r\n\r\n，退出,关于为什么要用string(string.c_str())再转一次这是因为可能会插入一堆0，导致不能正常退出
+					if (count == "0") { break; } // 最后一个 0\r\n\r\n，退出
 					auto countNum = stoi(count, nullptr, 16); // 那数量是16进制
 					auto chunkedStart = sc.begin() + Right + 2; // 每个分块正文的开始位置
 					PureSouceChar.insert(PureSouceChar.end(), chunkedStart, chunkedStart + countNum);
@@ -440,7 +458,7 @@ namespace sion
 						while (Left != -1 && Right != -1)
 						{
 							auto count = string(rb.begin() + 2 + Left, rb.begin() + Right); // 每个分块开头写的数量
-							if (string(count.c_str()).size() == 0) { break; } // 最后一个 0\r\n\r\n，退出
+							if (count == "0") { break; } // 最后一个 0\r\n\r\n，退出
 							auto countNum = stoi(count, nullptr, 16); // 那数量是16进制
 							auto chunkedStart = rb.begin() + Right + 2; // 每个分块正文的开始位置
 							pureStr.insert(pureStr.end(), chunkedStart, chunkedStart + countNum);
@@ -623,14 +641,14 @@ namespace sion
 			};
 			Response resp;
 			// 读取解析头部信息
-			auto num = Read();
+			auto ReadCount = Read();
 			resp.Source += buf.data();
 			resp.ParseFromSource(true);
 			if (resp.SaveByCharVec)
 			{	// 把除头外多余的响应体部分移过去
 				auto bodyPos = resp.Source.find("\r\n\r\n");
 				auto startBody = buf.begin() + 4 + bodyPos;
-				resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, buf.begin() + num);
+				resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, buf.begin() + ReadCount);
 			}
 			auto lenHeader = resp.Source.length() - resp.BodyStr.length(); // 响应头长度
 			// 检查是否接收完
@@ -663,17 +681,17 @@ namespace sion
 			// 循环读取接收
 			while (!CheckEnd())
 			{
-				num = Read();
+				ReadCount = Read();
 				if (resp.SaveByCharVec)
 				{
-					resp.BodyCharVec.insert(resp.BodyCharVec.end(), buf.begin(), buf.begin() + num);
+					resp.BodyCharVec.insert(resp.BodyCharVec.end(), buf.begin(), buf.begin() + ReadCount);
 				}
 				else
 				{
 					resp.Source += buf.data();
 				}
 			}
-			closesocket(socket);
+			// closesocket(socket);
 			if (resp.SaveByCharVec)
 			{
 				if (resp.IsChunked)
