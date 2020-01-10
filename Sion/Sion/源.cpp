@@ -1,6 +1,5 @@
 #include <iostream>
 #include <fstream>
-#include <functional>
 // #define SION_DISABLE_SSL
 #include "sion.h"
 #include <ppltasks.h>
@@ -41,7 +40,7 @@ task<void> RestTask()
 				.then([] { return Fetch("https://www.themepark.com.cn/"); })
 				.then([](Response resp)
 					{
-						ofstream file(R"(23333.html)", ios::binary);
+						ofstream file(R"(chunked.html)", ios::binary);
 						file.write(resp.BodyStr.data(), resp.ContentLength * sizeof(char));
 					})
 				.then(ErrorBoundaries); // 捕获运行时可能产生的异常
@@ -72,6 +71,7 @@ task<void> DownloadTask()
 
 int main()
 {
+
 	vector<task<void>> tasks{ DownloadTask(),RestTask() };
 	when_all(tasks.begin(), tasks.end()).wait();
 }

@@ -12,6 +12,7 @@
 #include <codecvt>
 #include <locale>
 #include <mutex>
+#include <functional>
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <winsock2.h>
@@ -211,10 +212,11 @@ namespace sion
 	void Throw(MyString msg = "") { throw ExceptionType(msg.c_str()); }
 
 	template<typename ExceptionType = std::exception>
-	void check(bool condition, MyString msg = "")
+	void check(bool condition, MyString msg = "", std::function<void()> recycle = [] {})
 	{
 		if (!condition)
 		{
+			recycle();
 			Throw<ExceptionType>(msg);
 		}
 	}
@@ -375,7 +377,7 @@ namespace sion
 			Status = FirstLine[2].Trim();
 			data.erase(data.begin());
 			// 头
-			for (auto x : data)
+			for (auto& x : data)
 			{
 				auto pair = x.Split(":", 1);
 				if (pair.size() == 2)
@@ -405,7 +407,7 @@ namespace sion
 			if (SaveByCharVec)
 			{
 				const auto& sc = BodyCharVec;
-				if (sc.size() == 0) { return; }
+				if (sc.size() == 0||!IsChunked) { return; }
 				vector<char> PureSouceChar;
 				// 获取下一个\r\n的位置
 				int NRpos = 0;
@@ -439,36 +441,32 @@ namespace sion
 			else
 			{
 				auto bodyPos = Source.find("\r\n\r\n");
-				if (bodyPos != -1 && bodyPos != Source.length() - 4)
+				if (bodyPos == string::npos || bodyPos == Source.length() - 4) { return; }
+				BodyStr = Source.substr(bodyPos + 4);
+				if (!IsChunked) { return; }
+				const auto& rb = BodyStr;
+				MyString pureStr;
+				// 获取下一个\r\n的位置
+				int NRpos = 0;
+				auto GetNextNR = [&](int leap)
 				{
-					BodyStr = Source.substr(bodyPos + 4);
-					if (IsChunked && BodyStr != "")
-					{
-						const auto& rb = BodyStr;
-						MyString pureStr;
-						// 获取下一个\r\n的位置
-						int NRpos = 0;
-						auto GetNextNR = [&](int leap)
-						{
-							NRpos = rb.find("\r\n", NRpos + leap);
-							return NRpos;
-						};
-						int Left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
-						int Right = GetNextNR(0);
-						while (Left != -1 && Right != -1)
-						{
-							auto count = string(rb.begin() + 2 + Left, rb.begin() + Right); // 每个分块开头写的数量
-							if (count == "0") { break; } // 最后一个 0\r\n\r\n，退出
-							auto countNum = stoi(count, nullptr, 16); // 那数量是16进制
-							auto chunkedStart = rb.begin() + Right + 2; // 每个分块正文的开始位置
-							pureStr.insert(pureStr.end(), chunkedStart, chunkedStart + countNum);
-							Left = GetNextNR(countNum); //  更新位置
-							Right = GetNextNR(1);
-						}
-						BodyStr = pureStr;
-						ContentLength = BodyStr.length();
-					}
+					NRpos = rb.find("\r\n", NRpos + leap);
+					return NRpos;
+				};
+				int Left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
+				int Right = GetNextNR(0);
+				while (Left != -1 && Right != -1)
+				{
+					auto count = string(rb.begin() + 2 + Left, rb.begin() + Right); // 每个分块开头写的数量
+					if (count == "0") { break; } // 最后一个 0\r\n\r\n，退出
+					auto countNum = stoi(count, nullptr, 16); // 那数量是16进制
+					auto chunkedStart = rb.begin() + Right + 2; // 每个分块正文的开始位置
+					pureStr.insert(pureStr.end(), chunkedStart, chunkedStart + countNum);
+					Left = GetNextNR(countNum); //  更新位置
+					Right = GetNextNR(1);
 				}
+				BodyStr = pureStr;
+				ContentLength = BodyStr.length();
 			}
 		}
 	};
@@ -557,35 +555,40 @@ namespace sion
 			Host = m[2];
 			Path = m[4].length() == 0 ? "/" : m[4].str();
 			Socket socket = GetSocket();
-			Connection(socket, Host);
-			BuildRequestString();
-			if (Protocol == "http")
+			try
 			{
-				send(socket, Source.c_str(), int(Source.length()), 0);
-				return ReadResponse(socket);
-			}
+				Connection(socket, Host);
+				BuildRequestString();
+				if (Protocol == "http")
+				{
+					send(socket, Source.c_str(), int(Source.length()), 0);
+					return ReadResponse(socket);
+				}
 #ifndef SION_DISABLE_SSL
-			else // if (Protocol == "https")
-			{
-				return SendBySSL(socket);
-			}
+				else // if (Protocol == "https")
+				{
+					return SendBySSL(socket);
+				}
 #endif
+			}
+			catch (const std::exception& e)
+			{
+				WSACleanup();
+				throw e;
+			}
 		}
 
 	private:
 		void BuildRequestString()
 		{
+			RequestHeader.Add("Host", Host);
+			RequestHeader.Add("Content-Length", std::to_string(RequestBody.length()));
 			if (Cookie.length())
 			{
 				RequestHeader.Add("Cookie", Cookie);
 			}
-			RequestHeader.Add("Host", Host);
-			if (RequestBody.length())
-			{
-				RequestHeader.Add("Content-Length", std::to_string(RequestBody.length()));
-			}
 			Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
-			for (auto x : RequestHeader.data)
+			for (auto& x : RequestHeader.data)
 			{
 				Source += x.first + ": " + x.second + "\r\n";
 			}
@@ -691,19 +694,9 @@ namespace sion
 					resp.Source += buf.data();
 				}
 			}
-			// closesocket(socket);
-			if (resp.SaveByCharVec)
-			{
-				if (resp.IsChunked)
-				{	// 字节流且是分块编码的清除下
-					
-					resp.ParseFromSource();
-				}
-			}
-			else
-			{
-				resp.ParseFromSource();
-			}
+			closesocket(socket);
+			WSACleanup();
+			resp.ParseFromSource();
 			return resp;
 		}
 	};
