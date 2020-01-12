@@ -76,7 +76,7 @@ MyString Trim(MyString target = " ");
 bool HasLetter();
 
 // 转成小写，返回一个新的字符串
-MyString ToLowerCase()；
+MyString ToLowerCase();
 
 // 转成大写，返回一个新的字符串
 MyString ToUpperCase();

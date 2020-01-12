@@ -3,11 +3,11 @@
 // #define SION_DISABLE_SSL
 #include "sion.h"
 #include <ppltasks.h>
+#include <thread>
 #pragma warning(disable : 26444)
 using namespace sion;
 using namespace std;
 using namespace concurrency;
-
 
 void ErrorBoundaries(task<void> task)
 {
@@ -71,7 +71,6 @@ task<void> DownloadTask()
 
 int main()
 {
-
 	vector<task<void>> tasks{ DownloadTask(),RestTask() };
 	when_all(tasks.begin(), tasks.end()).wait();
 }
