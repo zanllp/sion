@@ -11,7 +11,6 @@
 #include <vector>
 #include <codecvt>
 #include <locale>
-#include <mutex>
 #include <functional>
 #ifdef _WIN32
 #include <WS2tcpip.h>
@@ -230,23 +229,6 @@ namespace sion
         }
     }
     using Socket = SOCKET;
-
-    class Socket_
-    {
-    };
-
-    class SocketFactory
-    {
-    public:
-        static map<MyString, Socket> SocketAll;
-
-        static Socket Get(MyString host)
-        {
-            std::mutex mu;
-            std::lock_guard<std::mutex> lock(mu);
-            return -1;
-        }
-    };
 
     MyString GetIpByHost(MyString hostname)
     {
@@ -521,7 +503,6 @@ namespace sion
 
         Request& SetHttpMethod(sion::Method method)
         {
-            std::lock_guard<std::mutex> lock(mu);
             switch (method)
             {
             case Method::Get:
@@ -542,49 +523,42 @@ namespace sion
 
         Request& SetHttpMethod(MyString other)
         {
-            std::lock_guard<std::mutex> lock(mu);
             Method = other;
             return *this;
         }
 
         Request& SetUrl(MyString url)
         {
-            std::lock_guard<std::mutex> lock(mu);
             Url = url;
             return *this;
         }
 
         Request& SetCookie(MyString cookie)
         {
-            std::lock_guard<std::mutex> lock(mu);
             Cookie = cookie;
             return *this;
         }
 
         Request& SetBody(MyString body)
         {
-            std::lock_guard<std::mutex> lock(mu);
             RequestBody = body;
             return *this;
         }
 
         Request& SetHeader(vector<pair<MyString, MyString>> header)
         {
-            std::lock_guard<std::mutex> lock(mu);
             RequestHeader.data = header;
             return *this;
         }
 
         Request& SetHeader(MyString k, MyString v)
         {
-            std::lock_guard<std::mutex> lock(mu);
             RequestHeader.Add(k, v);
             return *this;
         }
 
         Response Send(sion::Method method, MyString url)
         {
-            std::lock_guard<std::mutex> lock(mu);
             SetHttpMethod(method);
             return Send(url);
         }
@@ -592,7 +566,6 @@ namespace sion
         Response Send() { return Send(Url); }
 #ifndef SION_DISABLE_SSL
     private:
-        std::mutex mu;
         Response SendBySSL(Socket socket)
         {
             SSL_library_init();
@@ -612,7 +585,6 @@ namespace sion
     public:
         Response Send(MyString url)
         {
-            std::lock_guard<std::mutex> lock(mu);
             check<std::invalid_argument>(Method.length(), "请求方法未定义");
             std::smatch m;
 #ifndef SION_DISABLE_SSL
@@ -652,14 +624,6 @@ namespace sion
                 WSACleanup();
                 throw e;
             }
-        }
-        auto SendAsync()
-        {
-            //std::lock_guard<std::mutex> lock(mu);
-            return create_task([=] {
-                std::lock_guard<std::mutex> lock(mu);
-                return Send(Url); 
-                });
         }
 
     private:
@@ -784,10 +748,6 @@ namespace sion
     };
 
     Response Fetch(MyString url, Method method = Method::Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
-    {
-        return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
-    }
-    auto FetchAsync(MyString url, Method method = Method::Get, vector<pair<MyString, MyString>> header = {}, MyString body = "")
     {
         return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
     }
