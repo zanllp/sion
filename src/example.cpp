@@ -22,10 +22,10 @@ void ErrorBoundaries(task<void> task)
 
 task<void> RestTask()
 {
-    // Ê¹ÓÃpplÊµÏÖÒì²½²Ù×÷£¬sionÄÚÎª×èÈûio
-    return create_task([] { cout << "-- RESTÈÎÎñ¿ªÊ¼" << endl; })
+    // ä½¿ç”¨pplå®ç°å¼‚æ­¥æ“ä½œï¼Œsionå†…ä¸ºé˜»å¡io
+    return create_task([] { cout << "-- RESTä»»åŠ¡å¼€å§‹" << endl; })
         .then(([] { return Fetch("https://api.zanllp.cn/plugin"); }))
-        .then([](Response resp) { cout << "-- ÏìÓ¦Í· Content-Type: " << resp.HeaderValue("content-type") << endl; })
+        .then([](Response resp) { cout << "-- å“åº”å¤´ Content-Type: " << resp.HeaderValue("content-type") << endl; })
         .then(([] {
             return Request()
                 .SetUrl("https://api.zanllp.cn/socket/push?descriptor=fHXMHCQfcgNHDq2P")
@@ -34,32 +34,32 @@ task<void> RestTask()
                 .SetHeader("Content-Type", "application/json; charset=utf-8")
                 .Send();
         }))
-        .then([](Response resp) { cout << "-- ÏìÓ¦Ìå: " << resp.BodyStr.ToGbk() << endl; })
+        .then([](Response resp) { cout << "-- å“åº”ä½“: " << resp.BodyStr << endl; })
         .then([] { return Fetch("https://www.themepark.com.cn/"); })
         .then([](Response resp) {
             ofstream file(R"(chunked.html)", ios::binary);
             file.write(resp.BodyStr.data(), resp.ContentLength * sizeof(char));
         })
-        .then(ErrorBoundaries); // ²¶»ñÔËĞĞÊ±¿ÉÄÜ²úÉúµÄÒì³£
+        .then(ErrorBoundaries); // æ•è·è¿è¡Œæ—¶å¯èƒ½äº§ç”Ÿçš„å¼‚å¸¸
 }
 
 task<void> DownloadTask()
 {
     auto DownloadChunkedFile = [] {
         auto resp = Fetch("http://www.httpwatch.com/httpgallery/chunked/chunkedimage.aspx");
-        ofstream file(R"(·Ö¿é.jpeg)", ios::binary);
+        ofstream file(R"(åˆ†å—.jpeg)", ios::binary);
         file.write(resp.BodyCharVec.data(), resp.BodyCharVec.size() * sizeof(char));
     };
     auto DownloadHuaji = [] {
         auto resp = Fetch("https://static.zanllp.cn/94da3a6b32e0ddcad844aca6a8876da2ecba8cb3c7094c3ad10996b28311e4b50ab455ee3d6d55fb50dc4e3c62224f4a20a4ddb1.gif");
-        ofstream file(R"(»¬»ü.gif)", ios::binary);
+        ofstream file(R"(æ»‘ç¨½.gif)", ios::binary);
         file.write(resp.BodyCharVec.data(), resp.BodyCharVec.size() * sizeof(char));
     };
-    return create_task([] { cout << "ÏÂÔØÈÎÎñ¿ªÊ¼" << endl; })
+    return create_task([] { cout << "ä¸‹è½½ä»»åŠ¡å¼€å§‹" << endl; })
         .then(DownloadChunkedFile)
-        .then([] { cout << "·Ö¿éÎÄ¼şÏÂÔØÍê³É" << endl; })
+        .then([] { cout << "åˆ†å—æ–‡ä»¶ä¸‹è½½å®Œæˆ" << endl; })
         .then(DownloadHuaji)
-        .then([] { cout << "»¬»ü.gifÏÂÔØÍê³É" << endl; })
+        .then([] { cout << "æ»‘ç¨½.gifä¸‹è½½å®Œæˆ" << endl; })
         .then(ErrorBoundaries);
 }
 

@@ -2,11 +2,13 @@
 ## 特性
 * Sion是一个轻量级简单易用的c++ http客户端
 * 仅单头文件700行，自带std::string的扩展
+* 跨平台，支持linux，window...
 * 支持文本及二进制的响应体
 * 支持分块(chunked)的传输编码
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
 ## 用法
 ### 最普通的GET请求
+直接复制`src/sion.h`到自己的项目下include
 ```cpp
 auto resp = Fetch("https://api.zanllp.cn/plugin");
 cout << resp.BodyStr << endl;
@@ -54,10 +56,10 @@ SION是cpp客户端所使用的，在之前用过c#的HttpClient,py的request,js
 ## Fetch
 ~~~cpp
 // 静态请求方法
-Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString>> header = {}, MyString body = "");
+Response Fetch(String url, Method method = Get, vector<pair<String, String>> header = {}, String body = "");
 ~~~
 
-## MyString
+## String
 该类继承std::string，用法基本一致，拓展了几个函数
 
 ~~~cpp
@@ -66,31 +68,28 @@ Response Fetch(MyString url, Method method = Get, vector<pair<MyString, MyString
 //flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
 //num 分割次数，默认0即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
 //skipEmpty 跳过空字符串，即不压入length==0的字符串
-std::vector<MyString> Split(MyString flag, int num = 0, bool skipEmpty = true);
+std::vector<String> Split(String flag, int num = -1, bool skipEmpty = true);
 
 //清除前后的字符
-//target 需要清除的字符默认空格
-MyString Trim(MyString target = " ");
+//target 需要清除的字符默认空格空格姬换行符
+String Trim(String target = " \n\r");
 
 //包含字母
 bool HasLetter();
 
 // 转成小写，返回一个新的字符串
-MyString ToLowerCase();
+String ToLowerCase();
 
 // 转成大写，返回一个新的字符串
-MyString ToUpperCase();
-
-//转换到gbk 中文显示乱码调用这个,一般不需要管
-MyString ToGbk();
+String ToUpperCase();
 
 //返回搜索到的所有位置
 //flag 定位标志
 //num 搜索数量，默认直到结束
-std::vector<int> FindAll(MyString flag, int num = -1);
+std::vector<int> FindAll(String flag, int num = -1);
 
 //字符串替换，会修改原有的字符串，而不是返回新的
-MyString& Replace(MyString oldStr, MyString newStr);
+String& Replace(String oldStr, String newStr);
 ~~~
 
 ## Response
@@ -99,42 +98,42 @@ MyString& Replace(MyString oldStr, MyString newStr);
 bool IsChunked ; // 是否分块编码
 bool SaveByCharVec; // 是否使用字符数组保存，对于文本直接用字符串保存，其它用char数组
 int ContentLength = 0; // 正文长度
-MyString Source; // 源响应报文
-MyString Cookie; 
-MyString ProtocolVersion;
-MyString Code;
-MyString Status;
-MyString BodyStr; // 响应体，对于文本直接保存这
+String Source; // 源响应报文
+String Cookie; 
+String ProtocolVersion;
+String Code;
+String Status;
+String BodyStr; // 响应体，对于文本直接保存这
 vector<char> BodyCharVec; // 响应体，对于二进制流保存在这
 Header ResponseHeader; // 响应头
-MyString HeaderValue(MyString k)；// 获取响应体的值（最后一个）
+String HeaderValue(String k)；// 获取响应体的值（最后一个）
 ```
 
 ## Request
 该类用来处理发送请求
 ~~~cpp
 //支持链式设置属性
-Request& SetHttpMethod(MyString other) ;
-Request& SetUrl(MyString url);
-Request& SetCookie(MyString cookie);
-Request& SetBody(MyString body);
-Request& SetHeader(vector<pair<MyString, MyString>> header);
-Request& SetHeader(MyString k, MyString v);
+Request& SetHttpMethod(String other) ;
+Request& SetUrl(String url);
+Request& SetCookie(String cookie);
+Request& SetBody(String body);
+Request& SetHeader(vector<pair<String, String>> header);
+Request& SetHeader(String k, String v);
 
 //发送请求
-Response Send(MyString url);
-Response Send(Method method, MyString url);
+Response Send(String url);
+Response Send(Method method, String url);
 ~~~
 
 ## Header
 响应头
 ```cpp
 // 添加一个键值对到头中
-void Add(MyString k, MyString v);
+void Add(String k, String v);
 
 // 获取头的键所对应的所有值
-vector<MyString> GetValue(MyString key);
+vector<String> GetValue(String key);
 
 // 获取头的键所对应的值，以最后一个为准
-MyString GetLastValue(MyString key);
+String GetLastValue(String key);
 ```
