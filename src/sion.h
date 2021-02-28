@@ -41,7 +41,7 @@ namespace sion
     {
     public:
         String(){};
-        virtual ~String(){};
+        ~String(){};
         template <class T>
         String(T &&arg) : string(std::forward<T>(arg)) {}
 
