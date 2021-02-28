@@ -643,7 +643,7 @@ namespace sion
         {
             in_addr sa;
             IP = host.HasLetter() ? GetIpByHost(host) : host;
-#ifdef _WIN322
+#ifdef _WIN32
             check<std::invalid_argument>((InetPton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
 #else
             check<std::invalid_argument>((inet_pton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
@@ -654,7 +654,7 @@ namespace sion
             saddr.sin_addr = sa;
             if (::connect(socket, (sockaddr *)&saddr, sizeof(saddr)) != 0)
             {
-#ifdef __WIN32
+#ifdef _WIN32
                 std::string err = "连接失败错误码：" + std::std::to_string(WSAGetLastError());
 #else
                 std::string err = "连接失败";
@@ -737,7 +737,7 @@ namespace sion
                     resp.Source += buf.data();
                 }
             }
-#ifdef __WIN32
+#ifdef _WIN32
             closesocket(socket);
             WSACleanup();
 #else

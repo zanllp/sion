@@ -7,8 +7,8 @@
 * 支持分块(chunked)的传输编码
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
 ## 用法
+直接复制[sion.h](src/sion.h)到自己的项目下`include`
 ### 最普通的GET请求
-直接复制`src/sion.h`到自己的项目下include
 ```cpp
 auto resp = Fetch("https://api.zanllp.cn/plugin");
 cout << resp.BodyStr << endl;
