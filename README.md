@@ -2,7 +2,7 @@
 ## 特性
 * Sion是一个轻量级简单易用的c++ http客户端
 * 仅单头文件700行，自带std::string的扩展
-* 跨平台，支持linux，window...
+* 跨平台，支持linux，win, mac...
 * 支持文本及二进制的响应体
 * 支持分块(chunked)的传输编码
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
