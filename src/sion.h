@@ -424,20 +424,20 @@ namespace sion
                 }
                 vector<char> pure_source_char;
                 // 获取下一个\r\n的位置
-                int nr_pos = 0;
-                auto get_next_nr = [&](int leap) {
-                    for (int i = nr_pos + leap; i < (sc.size() - 1); i++)
+                int crlf_pos = 0;
+                auto get_next_crlf = [&](int leap) {
+                    for (int i = crlf_pos + leap; i < (sc.size() - 1); i++)
                     {
                         if (sc[i] == '\r' && sc[i + 1] == '\n')
                         {
-                            nr_pos = i;
+                            crlf_pos = i;
                             return i;
                         }
                     }
                     return -1;
                 };
                 int left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
-                int right = get_next_nr(0);
+                int right = get_next_crlf(0);
                 while (left != -1 && right != -1)
                 {
                     auto count = string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
@@ -448,8 +448,8 @@ namespace sion
                     auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
                     auto chunked_start = sc.begin() + right + 2; // 每个分块正文的开始位置
                     pure_source_char.insert(pure_source_char.end(), chunked_start, chunked_start + count_num);
-                    left = get_next_nr(count_num); //  更新位置
-                    right = get_next_nr(1);
+                    left = get_next_crlf(count_num); //  更新位置
+                    right = get_next_crlf(1);
                 }
                 body_char_vec_ = pure_source_char;
                 content_length_ = pure_source_char.size();
@@ -469,13 +469,13 @@ namespace sion
                 const auto &rb = body_str_;
                 String pure_str;
                 // 获取下一个\r\n的位置
-                int nr_pos = 0;
-                auto get_next_nr = [&](int leap) {
-                    nr_pos = rb.find("\r\n", nr_pos + leap);
-                    return nr_pos;
+                int crlf_pos = 0;
+                auto get_next_crlf = [&](int leap) {
+                    crlf_pos = rb.find("\r\n", crlf_pos + leap);
+                    return crlf_pos;
                 };
                 int left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
-                int right = get_next_nr(0);
+                int right = get_next_crlf(0);
                 while (left != -1 && right != -1)
                 {
                     auto count = string(rb.begin() + 2 + left, rb.begin() + right); // 每个分块开头写的数量
@@ -486,8 +486,8 @@ namespace sion
                     auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
                     auto chunked_start = rb.begin() + right + 2; // 每个分块正文的开始位置
                     pure_str.insert(pure_str.end(), chunked_start, chunked_start + count_num);
-                    left = get_next_nr(count_num); //  更新位置
-                    right = get_next_nr(1);
+                    left = get_next_crlf(count_num); //  更新位置
+                    right = get_next_crlf(1);
                 }
                 body_str_ = pure_str;
                 content_length_ = body_str_.length();
