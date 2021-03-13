@@ -1,16 +1,9 @@
 #pragma once
-#pragma warning(disable : 4267)
-#pragma warning(disable : 4244)
-#pragma warning(disable : 6031)
-#pragma warning(disable : 26451)
-#pragma warning(disable : 26444)
 #include <string>
 #include <map>
 #include <regex>
 #include <array>
 #include <vector>
-#include <codecvt>
-#include <locale>
 #include <functional>
 #ifdef _WIN32
 #include <WS2tcpip.h>
@@ -31,6 +24,8 @@
 #endif // !SION_DISABLE_SSL
 namespace sion
 {
+    class Request;
+    class Response;
     using std::array;
     using std::map;
     using std::pair;
@@ -41,7 +36,7 @@ namespace sion
     {
     public:
         String(){};
-        virtual ~String(){};
+        ~String(){};
         template <class T>
         String(T &&arg) : string(std::forward<T>(arg)) {}
 
@@ -65,44 +60,44 @@ namespace sion
         // 使用字符串分割
         // flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
         // num 分割次数，默认-1即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
-        // skipEmpty 跳过空字符串，即不压入length==0的字符串
-        vector<String> Split(String flag, int num = -1, bool skipEmpty = true) const
+        // skip_empty 跳过空字符串，即不压入length==0的字符串
+        vector<String> Split(String flag, int num = -1, bool skip_empty = true) const
         {
-            vector<String> dataSet;
-            auto PushData = [&](String line) {
-                if (line.length() != 0 || !skipEmpty)
+            vector<String> data_set;
+            auto push_data = [&](String line) {
+                if (line.length() != 0 || !skip_empty)
                 {
-                    dataSet.push_back(line);
+                    data_set.push_back(line);
                 }
             };
-            auto Pos = FindAll(flag, num);
-            if (Pos.size() == 0)
+            auto pos = FindAll(flag, num);
+            if (pos.size() == 0)
             {
                 return vector<String>({*this});
             }
-            for (auto i = 0; i < Pos.size() + 1; i++)
+            for (auto i = 0; i < pos.size() + 1; i++)
             {
-                if (dataSet.size() == num && Pos.size() > num && num != -1)
+                if (data_set.size() == num && pos.size() > num && num != -1)
                 { // 满足数量直接截到结束
-                    PushData(substr(Pos[dataSet.size()] + flag.size()));
+                    push_data(substr(pos[data_set.size()] + flag.size()));
                     break;
                 }
                 if (i == 0)
                 { // 第一个数的位置不是0的话补上
-                    PushData(substr(0, Pos[0]));
+                    push_data(substr(0, pos[0]));
                 }
-                else if (i != Pos.size())
+                else if (i != pos.size())
                 {
-                    int Left = Pos[i - 1] + flag.length();
-                    int Right = Pos[i] - Left;
-                    PushData(substr(Left, Right));
+                    int left = pos[i - 1] + flag.length();
+                    int right = pos[i] - left;
+                    push_data(substr(left, right));
                 }
                 else
                 { // 最后一个标志到结束
-                    PushData(substr(*(--Pos.end()) + flag.size()));
+                    push_data(substr(*(--pos.end()) + flag.size()));
                 }
             }
-            return dataSet;
+            return data_set;
         }
         // 清除前后的字符
         // target 需要清除的字符默认空格
@@ -170,34 +165,34 @@ namespace sion
         // num 搜索数量，默认直到结束
         vector<int> FindAll(String flag, int num = -1) const
         {
-            vector<int> Result;
-            auto Pos = find(flag);
+            vector<int> result;
+            auto pos = find(flag);
             auto flag_offset = flag.length() == 0 ? 1 : flag.length();
-            while (Pos != -1 && Result.size() != num)
+            while (pos != -1 && result.size() != num)
             {
-                Result.push_back(Pos);
-                Pos = find(flag, *(--Result.end()) + flag_offset);
+                result.push_back(pos);
+                pos = find(flag, *(--result.end()) + flag_offset);
             }
-            return Result;
+            return result;
         }
 
         // 字符串替换
         // oldStr 被替换的字符串
         // newStr 新换上的字符串
         // count 替换次数，默认1，大于0时替换到足够次数或找不到旧字符串为止，小于0时替换到结束
-        String &Replace(String oldStr, String newStr, int count = 1)
+        String &Replace(String old_str, String new_str, int count = 1)
         {
             if (count == 0)
             {
                 return *this;
             }
-            int pos = find(oldStr);
+            auto pos = find(old_str);
             if (pos == string::npos)
             {
                 return *this;
             }
-            replace(pos, oldStr.length(), newStr);
-            return Replace(oldStr, newStr, count < 0 ? -1 : count - 1);
+            replace(pos, old_str.length(), new_str);
+            return Replace(old_str, new_str, count < 0 ? -1 : count - 1);
         }
     };
 
@@ -230,11 +225,11 @@ namespace sion
         hints.ai_family = AF_INET; // ipv4
         if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
         {
-            Throw<std::runtime_error>("错误" + err + String(gai_strerror(err)));
+            Throw<std::runtime_error>("错误" + std::to_string(err) + String(gai_strerror(err)));
         }
         addr.s_addr = ((sockaddr_in *)(res->ai_addr))->sin_addr.s_addr;
         char str[INET_ADDRSTRLEN];
-        auto ptr = inet_ntop(AF_INET, &addr, str, sizeof(str));
+        inet_ntop(AF_INET, &addr, str, sizeof(str));
         freeaddrinfo(res);
         return str;
     }
@@ -310,42 +305,67 @@ namespace sion
 
     class Response
     {
-
+        friend Request;
+        bool is_chunked_ = false;       // 是否分块编码
+        bool save_by_char_vec_ = false; // 是否使用字符数组保存，对于文本直接用字符串保存，其它用char数组
+        int content_length_ = 0;        // 正文长度
+        String source_;                 // 源响应报文
+        String cookie_;
+        String protocol_version_;
+        String code_;
+        String status_;
+        String body_str_; // 响应体，对于文本直接保存这
+        String char_set_;
+        String content_type_;
+        vector<char> body_char_vec_; // 响应体，对于二进制流保存在这
+        Header response_header_;     // 响应头
     public:
-        bool IsChunked = false;     // 是否分块编码
-        bool SaveByCharVec = false; // 是否使用字符数组保存，对于文本直接用字符串保存，其它用char数组
-        int ContentLength = 0;      // 正文长度
-        String Source;              // 源响应报文
-        String Cookie;
-        String ProtocolVersion;
-        String Code;
-        String Status;
-        String BodyStr; // 响应体，对于文本直接保存这
-        String CharSet;
-        vector<char> BodyCharVec; // 响应体，对于二进制流保存在这
-        Header ResponseHeader;    // 响应头
         Response(){};
         ~Response(){};
 
         Response(String source) noexcept
         {
-            Source = source;
+            source_ = source;
             ParseFromSource();
         }
-        String HeaderValue(String k) { return ResponseHeader.GetLastValue(k); };
+        const String &Source()
+        {
+            return source_;
+        }
+
+        bool SaveByVec()
+        {
+            return this->save_by_char_vec_;
+        }
+
+        const String &ContentType()
+        {
+            return content_type_;
+        }
+
+        const String &Body()
+        {
+            return body_str_;
+        }
+
+        const vector<char> &BodyBin()
+        {
+            return body_char_vec_;
+        }
+        String HeaderValue(String k) { return response_header_.GetLastValue(k); };
 
         // 解析服务器发送过来的响应
-        // PreParse 预解析，如果为true且使用char保存而且不是chunked编码那么只解析头部
-        void ParseFromSource(bool PreParse = false)
+        // pre_parse 预解析，如果为true且使用char保存而且不是chunked编码那么只解析头部
+        void ParseFromSource(bool pre_parse = false)
         {
             // 头和首行一次就够
-            if (ResponseHeader.data.size() == 0)
+            if (response_header_.data.size() == 0)
             {
                 HeaderAndFirstLineParse();
             }
             // 响应体，预解析的时候解析响应体
             // 关闭预解析，或者是非分块且为字符串的时候就行解析，因为这种情况需要获取头的长度
-            if (!PreParse || (!IsChunked && !SaveByCharVec))
+            if (!pre_parse || (!is_chunked_ && !save_by_char_vec_))
             {
                 BodyStrParse();
             }
@@ -354,18 +374,18 @@ namespace sion
     private:
         void HeaderAndFirstLineParse()
         {
-            auto HeaderStr = Source.substr(0, Source.find("\r\n\r\n"));
-            auto data = String(HeaderStr).Split("\r\n");
+            auto header_str = source_.substr(0, source_.find("\r\n\r\n"));
+            auto data = String(header_str).Split("\r\n");
             if (data.size() == 0)
             {
                 return;
             }
             // 第一行
-            auto FirstLine = data[0].Split(" ", 2);
-            check<std::runtime_error>(FirstLine.size() == 3, "解析错误\n" + Source);
-            ProtocolVersion = FirstLine[0].Trim();
-            Code = FirstLine[1].Trim();
-            Status = FirstLine[2].Trim();
+            auto first_line = data[0].Split(" ", 2);
+            check<std::runtime_error>(first_line.size() == 3, "解析错误\n" + source_);
+            protocol_version_ = first_line[0].Trim();
+            code_ = first_line[1].Trim();
+            status_ = first_line[2].Trim();
             data.erase(data.begin());
             // 头
             for (auto &x : data)
@@ -373,141 +393,142 @@ namespace sion
                 auto pair = x.Split(":", 1);
                 if (pair.size() == 2)
                 {
-                    ResponseHeader.Add(pair[0].Trim().ToLowerCase(), pair[1].Trim());
+                    response_header_.Add(pair[0].Trim().ToLowerCase(), pair[1].Trim());
                 }
             }
-            String contentLen = HeaderValue("content-length");
-            ContentLength = contentLen != "" ? stoi(contentLen) : ContentLength;
-            IsChunked = ContentLength == 0;
-            Cookie = HeaderValue("cookie");
-            auto ContentType = HeaderValue("content-type");
-            if (ContentType != "")
+            String content_len = HeaderValue("content-length");
+            content_length_ = content_len != "" ? stoi(content_len) : content_length_;
+            is_chunked_ = content_length_ == 0;
+            cookie_ = HeaderValue("cookie");
+            content_type_ = HeaderValue("content-type");
+            if (content_type_ != "")
             { // Content-Type: text/html; charset=utf-8
-                auto ContentSplit = ContentType.Split(";", 1);
-                auto type = ContentSplit[0].Split("/", 1)[0].Trim();
-                SaveByCharVec = type != "text" && type != "application"; // 解析看是文本还字节流
-                if (ContentSplit.size() != 1)                            // 是gbk的话已经转过一次了，不用再管
+                auto content_split = content_type_.Split(";", 1);
+                auto type = content_split[0].Split("/", 1)[0].Trim();
+                save_by_char_vec_ = type != "text" && type != "application"; // 解析看是文本还字节流
+                if (content_split.size() != 1)                               // 是gbk的话已经转过一次了，不用再管
                 {
-                    CharSet = ContentSplit[1].Split("=", 1)[1].Trim();
+                    char_set_ = content_split[1].Split("=", 1)[1].Trim();
                 }
             }
         }
 
         void BodyStrParse()
         {
-            if (SaveByCharVec)
+            if (save_by_char_vec_)
             {
-                const auto &sc = BodyCharVec;
-                if (sc.size() == 0 || !IsChunked)
+                const auto &sc = body_char_vec_;
+                if (sc.size() == 0 || !is_chunked_)
                 {
                     return;
                 }
-                vector<char> PureSouceChar;
+                vector<char> pure_source_char;
                 // 获取下一个\r\n的位置
-                int NRpos = 0;
-                auto GetNextNR = [&](int leap) {
-                    for (int i = NRpos + leap; i < (sc.size() - 1); i++)
+                int nr_pos = 0;
+                auto get_next_nr = [&](int leap) {
+                    for (int i = nr_pos + leap; i < (sc.size() - 1); i++)
                     {
                         if (sc[i] == '\r' && sc[i + 1] == '\n')
                         {
-                            NRpos = i;
+                            nr_pos = i;
                             return i;
                         }
                     }
                     return -1;
                 };
-                int Left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
-                int Right = GetNextNR(0);
-                while (Left != -1 && Right != -1)
+                int left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
+                int right = get_next_nr(0);
+                while (left != -1 && right != -1)
                 {
-                    auto count = string(sc.begin() + 2 + Left, sc.begin() + Right); // 每个分块开头写的数量
+                    auto count = string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
                     if (count == "0")
                     {
                         break;
-                    }                                           // 最后一个 0\r\n\r\n，退出
-                    auto countNum = stoi(count, nullptr, 16);   // 那数量是16进制
-                    auto chunkedStart = sc.begin() + Right + 2; // 每个分块正文的开始位置
-                    PureSouceChar.insert(PureSouceChar.end(), chunkedStart, chunkedStart + countNum);
-                    Left = GetNextNR(countNum); //  更新位置
-                    Right = GetNextNR(1);
+                    }                                            // 最后一个 0\r\n\r\n，退出
+                    auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
+                    auto chunked_start = sc.begin() + right + 2; // 每个分块正文的开始位置
+                    pure_source_char.insert(pure_source_char.end(), chunked_start, chunked_start + count_num);
+                    left = get_next_nr(count_num); //  更新位置
+                    right = get_next_nr(1);
                 }
-                BodyCharVec = PureSouceChar;
-                ContentLength = PureSouceChar.size();
+                body_char_vec_ = pure_source_char;
+                content_length_ = pure_source_char.size();
             }
             else
             {
-                auto bodyPos = Source.find("\r\n\r\n");
-                if (bodyPos == string::npos || bodyPos == Source.length() - 4)
+                auto body_pos = source_.find("\r\n\r\n");
+                if (body_pos == string::npos || body_pos == source_.length() - 4)
                 {
                     return;
                 }
-                BodyStr = Source.substr(bodyPos + 4);
-                if (!IsChunked)
+                body_str_ = source_.substr(body_pos + 4);
+                if (!is_chunked_)
                 {
                     return;
                 }
-                const auto &rb = BodyStr;
-                String pureStr;
+                const auto &rb = body_str_;
+                String pure_str;
                 // 获取下一个\r\n的位置
-                int NRpos = 0;
-                auto GetNextNR = [&](int leap) {
-                    NRpos = rb.find("\r\n", NRpos + leap);
-                    return NRpos;
+                int nr_pos = 0;
+                auto get_next_nr = [&](int leap) {
+                    nr_pos = rb.find("\r\n", nr_pos + leap);
+                    return nr_pos;
                 };
-                int Left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
-                int Right = GetNextNR(0);
-                while (Left != -1 && Right != -1)
+                int left = -2; // 这里-2是因为第一个数量是400\r\n这样的，而其它的是\r\n400\r\n。所以要对第一次进行补偿
+                int right = get_next_nr(0);
+                while (left != -1 && right != -1)
                 {
-                    auto count = string(rb.begin() + 2 + Left, rb.begin() + Right); // 每个分块开头写的数量
+                    auto count = string(rb.begin() + 2 + left, rb.begin() + right); // 每个分块开头写的数量
                     if (count == "0")
                     {
                         break;
-                    }                                           // 最后一个 0\r\n\r\n，退出
-                    auto countNum = stoi(count, nullptr, 16);   // 那数量是16进制
-                    auto chunkedStart = rb.begin() + Right + 2; // 每个分块正文的开始位置
-                    pureStr.insert(pureStr.end(), chunkedStart, chunkedStart + countNum);
-                    Left = GetNextNR(countNum); //  更新位置
-                    Right = GetNextNR(1);
+                    }                                            // 最后一个 0\r\n\r\n，退出
+                    auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
+                    auto chunked_start = rb.begin() + right + 2; // 每个分块正文的开始位置
+                    pure_str.insert(pure_str.end(), chunked_start, chunked_start + count_num);
+                    left = get_next_nr(count_num); //  更新位置
+                    right = get_next_nr(1);
                 }
-                BodyStr = pureStr;
-                ContentLength = BodyStr.length();
+                body_str_ = pure_str;
+                content_length_ = body_str_.length();
             }
         }
     };
 
     class Request
     {
+        String source_;
+        String method_;
+        String path_;
+        String protocol_;
+        String ip_;
+        String url_;
+        String host_;
+        String cookie_;
+        String request_body_;
+        String protocol_version_ = "HTTP/1.1";
+        Header request_header_;
+
     public:
-        int port = 80;
-        String Source;
-        String Method;
-        String Path;
-        String Protocol;
-        String IP;
-        String Url;
-        String Host;
-        String Cookie;
-        String RequestBody;
-        String ProtocolVersion = "HTTP/1.1";
-        Header RequestHeader;
         Request(){};
         ~Request(){};
+        int port_ = 80;
 
         Request &SetHttpMethod(sion::Method method)
         {
             switch (method)
             {
             case Method::Get:
-                Method = "GET";
+                method_ = "GET";
                 break;
             case Method::Post:
-                Method = "POST";
+                method_ = "POST";
                 break;
             case Method::Put:
-                Method = "PUT";
+                method_ = "PUT";
                 break;
             case Method::Delete:
-                Method = "DELETE";
+                method_ = "DELETE";
                 break;
             }
             return *this;
@@ -515,37 +536,37 @@ namespace sion
 
         Request &SetHttpMethod(String other)
         {
-            Method = other;
+            method_ = other;
             return *this;
         }
 
         Request &SetUrl(String url)
         {
-            Url = url;
+            url_ = url;
             return *this;
         }
 
         Request &SetCookie(String cookie)
         {
-            Cookie = cookie;
+            cookie_ = cookie;
             return *this;
         }
 
         Request &SetBody(String body)
         {
-            RequestBody = body;
+            request_body_ = body;
             return *this;
         }
 
         Request &SetHeader(vector<pair<String, String>> header)
         {
-            RequestHeader.data = header;
+            request_header_.data = header;
             return *this;
         }
 
         Request &SetHeader(String k, String v)
         {
-            RequestHeader.Add(k, v);
+            request_header_.Add(k, v);
             return *this;
         }
 
@@ -555,18 +576,18 @@ namespace sion
             return Send(url);
         }
 
-        Response Send() { return Send(Url); }
+        Response Send() { return Send(url_); }
 #ifndef SION_DISABLE_SSL
     private:
         Response SendBySSL(Socket socket)
         {
             SSL_library_init();
-            auto method = TLSv1_1_client_method();
+            auto method = TLS_method();
             auto context = SSL_CTX_new(method);
             auto ssl = SSL_new(context);
             SSL_set_fd(ssl, socket);
             SSL_connect(ssl);
-            SSL_write(ssl, Source.c_str(), Source.length());
+            SSL_write(ssl, source_.c_str(), source_.length());
             auto resp = ReadResponse(socket, ssl);
             SSL_shutdown(ssl);
             SSL_free(ssl);
@@ -577,31 +598,31 @@ namespace sion
     public:
         Response Send(String url)
         {
-            check<std::invalid_argument>(Method.length(), "请求方法未定义");
+            check<std::invalid_argument>(method_.length(), "请求方法未定义");
             std::smatch m;
 #ifndef SION_DISABLE_SSL
-            std::regex urlParse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
-            regex_match(url, m, urlParse);
+            std::regex url_parse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
+            regex_match(url, m, url_parse);
             check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
-            Protocol = m[1];
-            port = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
+            protocol_ = m[1];
+            port_ = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
 #else
-            std::regex urlParse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
-            regex_match(url, m, urlParse);
+            std::regex url_parse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
+            regex_match(url, m, url_parse);
             check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
-            Protocol = m[1];
-            port = m[3].length() == 0 ? 80 : stoi(m[3]);
+            protocol_ = m[1];
+            port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
-            Host = m[2];
-            Path = m[4].length() == 0 ? "/" : m[4].str();
+            host_ = m[2];
+            path_ = m[4].length() == 0 ? "/" : m[4].str();
             Socket socket = GetSocket();
             try
             {
-                Connection(socket, Host);
+                Connection(socket, host_);
                 BuildRequestString();
-                if (Protocol == "http")
+                if (protocol_ == "http")
                 {
-                    send(socket, Source.c_str(), int(Source.length()), 0);
+                    send(socket, source_.c_str(), int(source_.length()), 0);
                     return ReadResponse(socket);
                 }
 #ifndef SION_DISABLE_SSL
@@ -618,38 +639,39 @@ namespace sion
 #endif
                 throw e;
             }
+            throw std::runtime_error("");
         }
 
     private:
         void BuildRequestString()
         {
-            RequestHeader.Add("Host", Host);
-            RequestHeader.Add("Content-Length", std::to_string(RequestBody.length()));
-            if (Cookie.length())
+            request_header_.Add("Host", host_);
+            request_header_.Add("Content-Length", std::to_string(request_body_.length()));
+            if (cookie_.length())
             {
-                RequestHeader.Add("Cookie", Cookie);
+                request_header_.Add("Cookie", cookie_);
             }
-            Source = Method + " " + Path + " " + ProtocolVersion + "\r\n";
-            for (auto &x : RequestHeader.data)
+            source_ = method_ + " " + path_ + " " + protocol_version_ + "\r\n";
+            for (auto &x : request_header_.data)
             {
-                Source += x.first + ": " + x.second + "\r\n";
+                source_ += x.first + ": " + x.second + "\r\n";
             }
-            Source += "\r\n";
-            Source += RequestBody;
+            source_ += "\r\n";
+            source_ += request_body_;
         }
 
         void Connection(Socket socket, String host)
         {
             in_addr sa;
-            IP = host.HasLetter() ? GetIpByHost(host) : host;
+            ip_ = host.HasLetter() ? GetIpByHost(host) : host;
 #ifdef _WIN32
-            check<std::invalid_argument>((InetPton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
+            check<std::invalid_argument>((InetPton(AF_INET, ip_.c_str(), &sa) != -1), "地址转换错误");
 #else
-            check<std::invalid_argument>((inet_pton(AF_INET, IP.c_str(), &sa) != -1), "地址转换错误");
+            check<std::invalid_argument>((inet_pton(AF_INET, ip_.c_str(), &sa) != -1), "地址转换错误");
 #endif
             sockaddr_in saddr;
             saddr.sin_family = AF_INET;
-            saddr.sin_port = htons(port);
+            saddr.sin_port = htons(port_);
             saddr.sin_addr = sa;
             if (::connect(socket, (sockaddr *)&saddr, sizeof(saddr)) != 0)
             {
@@ -667,19 +689,19 @@ namespace sion
         Response ReadResponse(Socket socket)
 #endif
         {
-            const int bufSize = 2048;
-            array<char, bufSize> buf{0};
+            const int buf_size = 2048;
+            array<char, buf_size> buf{0};
             auto Read = [&]() {
                 buf.fill(0);
                 int status = 0;
-                if (Protocol == "http")
+                if (protocol_ == "http")
                 {
-                    status = recv(socket, buf.data(), bufSize - 1, 0);
+                    status = recv(socket, buf.data(), buf_size - 1, 0);
                 }
 #ifndef SION_DISABLE_SSL
-                else if (Protocol == "https")
+                else if (protocol_ == "https")
                 {
-                    status = SSL_read(ssl, buf.data(), bufSize - 1);
+                    status = SSL_read(ssl, buf.data(), buf_size - 1);
                 }
 #endif
                 check<std::runtime_error>(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
@@ -687,53 +709,55 @@ namespace sion
             };
             Response resp;
             // 读取解析头部信息
-            auto ReadCount = Read();
-            resp.Source += buf.data();
+            auto read_count = Read();
+            resp.source_ += buf.data();
             resp.ParseFromSource(true);
-            if (resp.SaveByCharVec)
+            auto is_close = resp.HeaderValue("connection") == "close";
+
+            if (resp.save_by_char_vec_)
             { // 把除头外多余的响应体部分移过去
-                auto bodyPos = resp.Source.find("\r\n\r\n");
+                auto bodyPos = resp.source_.find("\r\n\r\n");
                 auto startBody = buf.begin() + 4 + bodyPos;
-                resp.BodyCharVec.insert(resp.BodyCharVec.end(), startBody, buf.begin() + ReadCount);
+                resp.body_char_vec_.insert(resp.body_char_vec_.end(), startBody, buf.begin() + read_count);
             }
-            auto lenHeader = resp.Source.length() - resp.BodyStr.length(); // 响应头长度
+            auto len_header = resp.source_.length() - resp.body_str_.length(); // 响应头长度
             // 检查是否接收完
-            auto CheckEnd = [&] {
-                if (resp.SaveByCharVec)
+            auto check_end = [&] {
+                if (resp.save_by_char_vec_)
                 {
-                    if (resp.IsChunked)
+                    if (resp.is_chunked_)
                     {
-                        auto start = resp.BodyCharVec.begin() + resp.BodyCharVec.size() - 7;
-                        return string(start, start + 7) == "\r\n0\r\n\r\n";
+                        auto start = resp.body_char_vec_.begin() + resp.body_char_vec_.size() - 7;
+                        return string(start, start + 7) == "\r\n0\r\n\r\n" || is_close;
                     }
                     else
                     {
-                        return resp.BodyCharVec.size() == resp.ContentLength;
+                        return resp.body_char_vec_.size() == resp.content_length_;
                     }
                 }
                 else
                 {
-                    if (resp.IsChunked)
+                    if (resp.is_chunked_)
                     {
-                        return resp.Source.substr(resp.Source.length() - 7) == "\r\n0\r\n\r\n";
+                        return resp.source_.substr(resp.source_.length() - 7) == "\r\n0\r\n\r\n" || is_close;
                     }
                     else
                     {
-                        return resp.Source.length() - lenHeader == resp.ContentLength;
+                        return resp.source_.length() - len_header == resp.content_length_;
                     }
                 }
             };
             // 循环读取接收
-            while (!CheckEnd())
+            while (!check_end())
             {
-                ReadCount = Read();
-                if (resp.SaveByCharVec)
+                read_count = Read();
+                if (resp.save_by_char_vec_)
                 {
-                    resp.BodyCharVec.insert(resp.BodyCharVec.end(), buf.begin(), buf.begin() + ReadCount);
+                    resp.body_char_vec_.insert(resp.body_char_vec_.end(), buf.begin(), buf.begin() + read_count);
                 }
                 else
                 {
-                    resp.Source += buf.data();
+                    resp.source_ += buf.data();
                 }
             }
 #ifdef _WIN32
