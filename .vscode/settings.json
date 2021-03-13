@@ -1,9 +1,0 @@
-{
-    "files.associations": {
-        "*.cjson": "jsonc",
-        "*.wxss": "css",
-        "*.wxs": "javascript",
-        "stdexcept": "cpp",
-        "iostream": "cpp"
-    }
-}
