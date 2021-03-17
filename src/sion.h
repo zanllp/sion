@@ -605,7 +605,7 @@ namespace sion
             regex_match(url, m, url_parse);
             check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
             protocol_ = m[1];
-            port_ = m[3].length() == 0 ? (Protocol == "http" ? 80 : 443) : stoi(m[3]);
+            port_ = m[3].length() == 0 ? (protocol_ == "http" ? 80 : 443) : stoi(m[3]);
 #else
             std::regex url_parse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
             regex_match(url, m, url_parse);
@@ -626,7 +626,7 @@ namespace sion
                     return ReadResponse(socket);
                 }
 #ifndef SION_DISABLE_SSL
-                else // if (Protocol == "https")
+                else // if (protocol_ == "https")
                 {
                     return SendBySSL(socket);
                 }
@@ -676,7 +676,7 @@ namespace sion
             if (::connect(socket, (sockaddr *)&saddr, sizeof(saddr)) != 0)
             {
 #ifdef _WIN32
-                std::string err = "连接失败错误码：" + std::std::to_string(WSAGetLastError());
+                std::string err = "连接失败错误码：" + std::to_string(WSAGetLastError());
 #else
                 std::string err = "连接失败";
 #endif
