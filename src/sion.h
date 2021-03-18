@@ -713,6 +713,10 @@ namespace sion
             resp.source_ += buf.data();
             resp.ParseFromSource(true);
             auto is_close = resp.HeaderValue("connection") == "close";
+            if (resp.code_[0] == '3' && resp.HeaderValue("location") != "") // 3xx
+            {
+                return resp;
+            }
 
             if (resp.save_by_char_vec_)
             { // 把除头外多余的响应体部分移过去
