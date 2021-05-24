@@ -637,7 +637,7 @@ namespace sion
 #ifdef _WIN32
                 WSACleanup();
 #endif
-                throw e;
+                throw std::runtime_error(e.what());
             }
             throw std::runtime_error("");
         }
@@ -675,10 +675,12 @@ namespace sion
             saddr.sin_addr = sa;
             if (::connect(socket, (sockaddr *)&saddr, sizeof(saddr)) != 0)
             {
+                String err = "连接失败:\nHost:" + host_ + "\n";
+                err += "Ip:" + ip_ + "\n";
 #ifdef _WIN32
-                std::string err = "连接失败错误码：" + std::to_string(WSAGetLastError());
+                err += info + "错误码：" + std::to_string(WSAGetLastError());
 #else
-                std::string err = "连接失败";
+                err += String("error str:") + strerror(errno);
 #endif
                 Throw<std::runtime_error>(err);
             }
