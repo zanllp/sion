@@ -35,10 +35,10 @@ namespace sion
     class String : public string
     {
     public:
-        String(){};
-        ~String(){};
+        String() {};
+        ~String() {};
         template <class T>
-        String(T &&arg) : string(std::forward<T>(arg)) {}
+        String(T&& arg) : string(std::forward<T>(arg)) {}
 
         String(int arg) : string(std::to_string(arg)) {}
 
@@ -73,7 +73,7 @@ namespace sion
             auto pos = FindAll(flag, num);
             if (pos.size() == 0)
             {
-                return vector<String>({*this});
+                return vector<String>({ *this });
             }
             for (auto i = 0; i < pos.size() + 1; i++)
             {
@@ -150,7 +150,7 @@ namespace sion
         // 包含字母
         bool HasLetter()
         {
-            for (auto &x : *this)
+            for (auto& x : *this)
             {
                 if ((x >= 'a' && x <= 'z') ||
                     (x >= 'A' && x <= 'Z'))
@@ -180,7 +180,7 @@ namespace sion
         // oldStr 被替换的字符串
         // newStr 新换上的字符串
         // count 替换次数，默认1，大于0时替换到足够次数或找不到旧字符串为止，小于0时替换到结束
-        String &Replace(String old_str, String new_str, int count = 1)
+        String& Replace(String old_str, String new_str, int count = 1)
         {
             if (count == 0)
             {
@@ -217,7 +217,7 @@ namespace sion
 
     String GetIpByHost(String hostname)
     {
-        addrinfo hints, *res;
+        addrinfo hints, * res;
         in_addr addr;
         int err;
         memset(&hints, 0, sizeof(addrinfo));
@@ -227,7 +227,7 @@ namespace sion
         {
             Throw<std::runtime_error>("错误" + std::to_string(err) + String(gai_strerror(err)));
         }
-        addr.s_addr = ((sockaddr_in *)(res->ai_addr))->sin_addr.s_addr;
+        addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
         char str[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &addr, str, sizeof(str));
         freeaddrinfo(res);
@@ -253,10 +253,10 @@ namespace sion
     class Header
     {
     public:
-        Header(){};
-        ~Header(){};
+        Header() {};
+        ~Header() {};
         vector<pair<String, String>> data;
-        Header &operator=(vector<pair<String, String>> &&other) noexcept
+        Header& operator=(vector<pair<String, String>>&& other) noexcept
         {
             data = other;
             return *this;
@@ -264,14 +264,14 @@ namespace sion
         // 添加一个键值对到头中
         void Add(String k, String v)
         {
-            data.push_back({k, v});
+            data.push_back({ k, v });
         }
         // 获取头的键所对应的所有值
         vector<String> GetValue(String key)
         {
             key = key.ToLowerCase();
             vector<String> res;
-            for (auto &i : data)
+            for (auto& i : data)
             {
                 if (i.first == key)
                 {
@@ -320,15 +320,15 @@ namespace sion
         vector<char> body_char_vec_; // 响应体，对于二进制流保存在这
         Header response_header_;     // 响应头
     public:
-        Response(){};
-        ~Response(){};
+        Response() {};
+        ~Response() {};
 
         Response(String source) noexcept
         {
             source_ = source;
             ParseFromSource();
         }
-        const String &Source()
+        const String& Source()
         {
             return source_;
         }
@@ -338,17 +338,17 @@ namespace sion
             return this->save_by_char_vec_;
         }
 
-        const String &ContentType()
+        const String& ContentType()
         {
             return content_type_;
         }
 
-        const String &Body()
+        const String& Body()
         {
             return body_str_;
         }
 
-        const vector<char> &BodyBin()
+        const vector<char>& BodyBin()
         {
             return body_char_vec_;
         }
@@ -388,7 +388,7 @@ namespace sion
             status_ = first_line[2].Trim();
             data.erase(data.begin());
             // 头
-            for (auto &x : data)
+            for (auto& x : data)
             {
                 auto pair = x.Split(":", 1);
                 if (pair.size() == 2)
@@ -417,7 +417,7 @@ namespace sion
         {
             if (save_by_char_vec_)
             {
-                const auto &sc = body_char_vec_;
+                const auto& sc = body_char_vec_;
                 if (sc.size() == 0 || !is_chunked_)
                 {
                     return;
@@ -466,7 +466,7 @@ namespace sion
                 {
                     return;
                 }
-                const auto &rb = body_str_;
+                const auto& rb = body_str_;
                 String pure_str;
                 // 获取下一个\r\n的位置
                 int crlf_pos = 0;
@@ -510,11 +510,11 @@ namespace sion
         Header request_header_;
 
     public:
-        Request(){};
-        ~Request(){};
+        Request() {};
+        ~Request() {};
         int port_ = 80;
 
-        Request &SetHttpMethod(sion::Method method)
+        Request& SetHttpMethod(sion::Method method)
         {
             switch (method)
             {
@@ -534,37 +534,37 @@ namespace sion
             return *this;
         }
 
-        Request &SetHttpMethod(String other)
+        Request& SetHttpMethod(String other)
         {
             method_ = other;
             return *this;
         }
 
-        Request &SetUrl(String url)
+        Request& SetUrl(String url)
         {
             url_ = url;
             return *this;
         }
 
-        Request &SetCookie(String cookie)
+        Request& SetCookie(String cookie)
         {
             cookie_ = cookie;
             return *this;
         }
 
-        Request &SetBody(String body)
+        Request& SetBody(String body)
         {
             request_body_ = body;
             return *this;
         }
 
-        Request &SetHeader(vector<pair<String, String>> header)
+        Request& SetHeader(vector<pair<String, String>> header)
         {
             request_header_.data = header;
             return *this;
         }
 
-        Request &SetHeader(String k, String v)
+        Request& SetHeader(String k, String v)
         {
             request_header_.Add(k, v);
             return *this;
@@ -632,7 +632,7 @@ namespace sion
                 }
 #endif
             }
-            catch (const std::exception &e)
+            catch (const std::exception& e)
             {
 #ifdef _WIN32
                 WSACleanup();
@@ -652,7 +652,7 @@ namespace sion
                 request_header_.Add("Cookie", cookie_);
             }
             source_ = method_ + " " + path_ + " " + protocol_version_ + "\r\n";
-            for (auto &x : request_header_.data)
+            for (auto& x : request_header_.data)
             {
                 source_ += x.first + ": " + x.second + "\r\n";
             }
@@ -673,12 +673,12 @@ namespace sion
             saddr.sin_family = AF_INET;
             saddr.sin_port = htons(port_);
             saddr.sin_addr = sa;
-            if (::connect(socket, (sockaddr *)&saddr, sizeof(saddr)) != 0)
+            if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
             {
                 String err = "连接失败:\nHost:" + host_ + "\n";
                 err += "Ip:" + ip_ + "\n";
 #ifdef _WIN32
-                err += info + "错误码：" + std::to_string(WSAGetLastError());
+                err += "错误码：" + std::to_string(WSAGetLastError());
 #else
                 err += String("error str:") + strerror(errno);
 #endif
@@ -686,13 +686,13 @@ namespace sion
             }
         }
 #ifndef SION_DISABLE_SSL
-        Response ReadResponse(Socket socket, SSL *ssl = nullptr)
+        Response ReadResponse(Socket socket, SSL* ssl = nullptr)
 #else
         Response ReadResponse(Socket socket)
 #endif
         {
             const int buf_size = 2048;
-            array<char, buf_size> buf{0};
+            array<char, buf_size> buf{ 0 };
             auto Read = [&]() {
                 buf.fill(0);
                 int status = 0;
