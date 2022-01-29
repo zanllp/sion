@@ -30,7 +30,7 @@ Sion对于Content-Type头是text和application的报文的响应体会使用字�
 * Content-Type: text/html; charset=utf-8
 * content-type: application/javascript
 * Content-Type: application/json; charset=utf-8
-  
+
 而对于其它的默认保存在BodyBin()中,具体保存在哪可以可以通过Response::SaveByVec判断
 
 例如这些头
@@ -41,13 +41,13 @@ Sion对于Content-Type头是text和application的报文的响应体会使用字�
 auto resp = Fetch("https://static.zanllp.cn/94da3a6b32e0ddcad844aca6a8876da2ecba8cb3c7094c3ad10996b28311e4b50ab455ee3d6d55fb50dc4e3c62224f4a20a4ddb1.gif");
 ofstream file(R"(滑稽.gif)", ios::binary);
 auto& bin = resp.BodyBin();
-file.write(bin.data(), bin.size() * sizeof(char));
+file.write(bin.data(), bin.size());
 
 // 当然也支持分块编码传输的
 auto resp = sion::Fetch("http://www.httpwatch.com/httpgallery/chunked/chunkedimage.aspx");
 std::ofstream file(R"(分块.jpeg)", std::ios::binary);
 auto& bin = resp.BodyBin();
-file.write(bin.data(), bin.size() * sizeof(char));
+file.write(bin.data(), bin.size());
 ```
 ### 异步请求
 SION是cpp客户端所使用的，在之前用过c#的HttpClient,py的request,js的Fetch，所以会受到这几种的影响，在写之前决定使用阻塞io+异步库的方式。具体怎么搞看[例子](./Sion/Sion/源.cpp)
