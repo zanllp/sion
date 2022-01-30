@@ -1,6 +1,7 @@
 #pragma once
 #include <array>
 #include <functional>
+#include <iostream>
 #include <map>
 #include <regex>
 #include <string>
@@ -408,11 +409,11 @@ class Response
         while (left != -1 && right != -1)
         {
             auto count = string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
-            if (count == "0")                                               // 最后一个 0\r\n\r\n，退出
+            auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
+            if (count_num == 0)                                               // 最后一个 0\r\n\r\n，退出
             {
                 break;
             }
-            auto count_num =stoi(count, nullptr, 16);   // 那数量是16进制
             auto chunked_start = sc.begin() + right + 2; // 每个分块正文的开始位置
             pure_source_char.insert(pure_source_char.end(), chunked_start, chunked_start + count_num);
             left = get_next_crlf(count_num + 2); //  更新位置lpv
@@ -432,7 +433,6 @@ class Request
     String ip_;
     String url_;
     String host_;
-    String cookie_;
     String request_body_;
     String protocol_version_ = "HTTP/1.1";
     Header request_header_;
@@ -471,12 +471,6 @@ class Request
     Request& SetUrl(String url)
     {
         url_ = url;
-        return *this;
-    }
-
-    Request& SetCookie(String cookie)
-    {
-        cookie_ = cookie;
         return *this;
     }
 
@@ -584,10 +578,6 @@ class Request
     {
         request_header_.Add("Host", host_);
         request_header_.Add("Content-Length", std::to_string(request_body_.length()));
-        if (cookie_.length())
-        {
-            request_header_.Add("Cookie", cookie_);
-        }
         source_ = method_ + " " + path_ + " " + protocol_version_ + "\r\n";
         for (auto& x : request_header_.Data())
         {
@@ -668,19 +658,37 @@ class Request
         // 检查是否接收完
         auto check_end = [&]
         {
+            const auto& body = resp.Body();
             if (resp.is_chunked_)
             {
-                if (resp.body_.size() < 7)
+                if (body.size() < 7)
                 {
                     return false;
                 }
-                auto start = resp.body_.begin() + resp.body_.size() - 5;
-                auto r = string(start, start + 5);
-                return r == "0\r\n\r\n";
+                auto chunked_end_offset = body.size() - 4;
+                auto chunked_end_iter = body.begin() + chunked_end_offset;
+                auto chunked_end = string(chunked_end_iter, chunked_end_iter + 4);
+                if (chunked_end != "\r\n\r\n")
+                {
+                    return false;
+                }
+                auto chunked_start_offset = chunked_end_offset - 1;
+                // 有些不是\r\n0\r\n\r\n 而是\r\n000000\r\n\r\n
+                for (auto& i = chunked_start_offset; i >= 2; i--)
+                {
+                    if (body[i] != '0')
+                    {
+                        break;
+                    }
+                    if (body[i - 1] == '\r' && body[i - 2] == '\n')
+                    {
+                        return true;
+                    }
+                }
             }
             else
             {
-                return resp.body_.size() == resp.content_length_;
+                return body.size() == resp.content_length_;
             }
             return false;
         };
