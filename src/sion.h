@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <atomic>
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <Windows.h>
@@ -731,7 +732,7 @@ class ThreadPool
     std::condition_variable cv_;
     std::vector<std::thread> threads_;
     bool running_ = false;
-    bool stopped_ = false;
+    std::atomic_bool stopped_ = false;
     bool is_block_ = false;
 
   public:
@@ -791,11 +792,11 @@ class ThreadPool
     void ThreadPoolLoop()
     {
         ThreadPoolPackage pkg;
-        while (!stopped_)
+        while (!stopped_.load())
         {
             std::unique_lock<std::mutex> lk(m_);
-            cv_.wait(lk, [&] { return !queue_.empty() || stopped_; });
-            if (stopped_)
+            cv_.wait(lk, [&] { return !queue_.empty() || stopped_.load(); });
+            if (stopped_.load())
             {
                 return;
             }
