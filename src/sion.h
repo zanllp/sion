@@ -1,8 +1,10 @@
 #pragma once
 #include <array>
+#include <condition_variable>
 #include <functional>
 #include <iostream>
 #include <map>
+#include <queue>
 #include <regex>
 #include <string>
 #include <thread>
@@ -409,8 +411,8 @@ class Response
         while (left != -1 && right != -1)
         {
             auto count = string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
-            auto count_num = stoi(count, nullptr, 16);   // 那数量是16进制
-            if (count_num == 0)                                               // 最后一个 0\r\n\r\n，退出
+            auto count_num = stoi(count, nullptr, 16);                      // 那数量是16进制
+            if (count_num == 0)                                             // 最后一个 0\r\n\r\n，退出
             {
                 break;
             }
@@ -651,7 +653,6 @@ class Request
             {
                 break;
             }
-            std::this_thread::yield();
         }
 
         resp.ParseHeader();
@@ -676,11 +677,12 @@ class Request
                 // 有些不是\r\n0\r\n\r\n 而是\r\n000000\r\n\r\n
                 for (auto& i = chunked_start_offset; i >= 2; i--)
                 {
-                    if (body[i] != '0')
+                    auto r = body[i];
+                    if (r != '0')
                     {
                         break;
                     }
-                    if (body[i - 1] == '\r' && body[i - 2] == '\n')
+                    if (body[i - 1] == '\n' && body[i - 2] == '\r')
                     {
                         return true;
                     }
@@ -713,4 +715,101 @@ Response Fetch(String url, Method method = Method::Get, vector<pair<String, Stri
 {
     return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 }
+
+struct ThreadPoolPackage
+{
+    Request request;
+    std::function<void(Response)> callback;
+    bool run_in_main_thread = true;
+};
+
+class ThreadPool
+{
+    int thread_num_ = 6;
+    std::queue<ThreadPoolPackage> queue_;
+    std::mutex m_;
+    std::condition_variable cv_;
+    std::vector<std::thread> threads_;
+    bool running_ = false;
+    bool stopped_ = false;
+    bool is_block_ = false;
+
+  public:
+    ~ThreadPool()
+    {
+        stopped_ = true;
+        cv_.notify_all();
+    }
+    ThreadPool& SetThreadNum(int num)
+    {
+        thread_num_ = num;
+        return *this;
+    }
+    ThreadPool& SetBlock(bool wait)
+    {
+        is_block_ = wait;
+        return *this;
+    }
+    void Run()
+    {
+        check<std::logic_error>(!running_, "一个线程池实例只能run一次");
+        for (size_t i = 0; i < thread_num_; i++)
+        {
+            threads_.push_back(std::thread([&] { ThreadPoolLoop(); }));
+        }
+        running_ = true;
+        for (auto& i : threads_)
+        {
+            if (is_block_)
+            {
+                i.join();
+            }
+            else
+            {
+                i.detach();
+            }
+        }
+    }
+    void Send(std::function<Request()> fn)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            queue_.push(ThreadPoolPackage{.request = fn()});
+        }
+        cv_.notify_one();
+    }
+    void Send(std::function<Request()> fn, std::function<void(Response)> cb)
+    {
+        {
+            std::lock_guard<std::mutex> lock(m_);
+            queue_.push(ThreadPoolPackage{.callback = cb, .request = fn(), .run_in_main_thread = false});
+        }
+        cv_.notify_one();
+    }
+
+  private:
+    void ThreadPoolLoop()
+    {
+        ThreadPoolPackage pkg;
+        while (!stopped_)
+        {
+            std::unique_lock<std::mutex> lk(m_);
+            cv_.wait(lk, [&] { return !queue_.empty() || stopped_; });
+            if (stopped_)
+            {
+                return;
+            }
+            pkg = queue_.front();
+            queue_.pop();
+            lk.unlock();
+            cv_.notify_one();
+            auto resp = pkg.request.Send();
+            if (!pkg.run_in_main_thread)
+            {
+                pkg.callback(resp);
+            }
+        }
+    }
+};
+
 } // namespace sion
