@@ -30,18 +30,18 @@ void DownloadChunkedFile()
 int main()
 {
     {
-        sion::ThreadPool tl;
+        sion::Async async;
         sion::String ms_url = "https://visualstudio.microsoft.com/zh-hans/msdn-platforms/";
-        tl.Run();
-        for (size_t i = 0; i < 16; i++)
+        async.SetThreadNum(2).Start();
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(300));
-            tl.Send([=]() { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); },
-                    [](sion::Response resp) { std::cout << resp.Header().Get("server")<<"  "<<std::this_thread::get_id() << std::endl; });
+            auto id = async.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+
+            auto pkg = async.Await(id);
+            std::cout << pkg.resp.Header().Data().size() << std::endl;
         }
     }
-    FetchHeader();
+    // FetchHeader();
     // FetchChunkedHtml();
-    DownloadChunkedFile();
+    // DownloadChunkedFile();
     return 1;
 }

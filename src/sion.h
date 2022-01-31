@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -9,7 +10,6 @@
 #include <string>
 #include <thread>
 #include <vector>
-#include <atomic>
 #ifdef _WIN32
 #include <WS2tcpip.h>
 #include <Windows.h>
@@ -27,6 +27,7 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #endif // !SION_DISABLE_SSL
+#define P(X) std::cout << X << std::endl;
 namespace sion
 {
 class Request;
@@ -716,47 +717,104 @@ Response Fetch(String url, Method method = Method::Get, vector<pair<String, Stri
 {
     return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 }
-
-struct ThreadPoolPackage
+enum AsyncResponseReceiveMode
+{
+    callback,
+    queue,
+    future
+};
+struct AsyncPackage
 {
     Request request;
     std::function<void(Response)> callback;
-    bool run_in_main_thread = true;
+    unsigned int id;
+    AsyncResponseReceiveMode received_mode;
 };
 
-class ThreadPool
+struct AsyncResponsePackage
+{
+    Response resp;
+    unsigned int id;
+    String err_msg;
+};
+
+class Async
 {
     int thread_num_ = 6;
-    std::queue<ThreadPoolPackage> queue_;
+    std::queue<AsyncPackage> queue_;
     std::mutex m_;
     std::condition_variable cv_;
+    std::condition_variable waiting_resp_cv_;
     std::vector<std::thread> threads_;
     bool running_ = false;
     std::atomic_bool stopped_ = false;
+    std::atomic_uint incr_id = 0;
     bool is_block_ = false;
+    std::mutex waiting_resp_queue_mutex_;
+    std::vector<AsyncResponsePackage> waiting_handle_response_;
 
   public:
-    ~ThreadPool()
+    ~Async()
     {
         stopped_ = true;
         cv_.notify_all();
     }
-    ThreadPool& SetThreadNum(int num)
+    Async& SetThreadNum(int num)
     {
         thread_num_ = num;
         return *this;
     }
-    ThreadPool& SetBlock(bool wait)
+    Async& SetBlock(bool wait)
     {
         is_block_ = wait;
         return *this;
     }
-    void Run()
+
+    auto GetTargetResp(unsigned int id)
     {
-        check<std::logic_error>(!running_, "一个线程池实例只能run一次");
+        auto& queue = waiting_handle_response_;
+        for (size_t i = 0; i < queue.size(); i++)
+        {
+            auto& target = queue[i];
+            if (target.id == id)
+            {
+                auto r = queue[i];
+                queue.erase(queue.begin() + i);
+                return r;
+            }
+        }
+        assert(false);
+    }
+
+    auto Await(unsigned int id)
+    {
+        std::unique_lock<std::mutex> lk(waiting_resp_queue_mutex_);
+        auto& queue = waiting_handle_response_;
+        auto check = [&]
+        {
+            for (auto& i : queue)
+            {
+                if (i.id == id)
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+        if (check())
+        {
+            return GetTargetResp(id);
+        }
+        waiting_resp_cv_.wait(lk, check);
+        return GetTargetResp(id);
+    }
+
+    void Start()
+    {
+        check<std::logic_error>(!running_, "一个线程池实例只能start一次");
         for (size_t i = 0; i < thread_num_; i++)
         {
-            threads_.push_back(std::thread([&] { ThreadPoolLoop(); }));
+            threads_.push_back(std::thread([&] { AsyncLoop(); }));
         }
         running_ = true;
         for (auto& i : threads_)
@@ -771,27 +829,41 @@ class ThreadPool
             }
         }
     }
-    void Send(std::function<Request()> fn)
+
+    auto Run(std::function<Request()> fn)
     {
+        auto id = ++incr_id;
         {
             std::lock_guard<std::mutex> lock(m_);
-            queue_.push(ThreadPoolPackage{.request = fn()});
+            queue_.push(AsyncPackage{.request = fn(), .id = id, .received_mode = AsyncResponseReceiveMode::queue});
         }
         cv_.notify_one();
+        return id;
     }
-    void Send(std::function<Request()> fn, std::function<void(Response)> cb)
+
+    auto Run(std::function<Request()> fn, std::function<void(Response)> cb)
     {
+        auto id = ++incr_id;
         {
             std::lock_guard<std::mutex> lock(m_);
-            queue_.push(ThreadPoolPackage{.callback = cb, .request = fn(), .run_in_main_thread = false});
+            queue_.push(AsyncPackage{.callback = cb, .request = fn(), .received_mode = AsyncResponseReceiveMode::callback});
         }
         cv_.notify_one();
+        return id;
+    }
+
+    auto GetAvailableResponse()
+    {
+        std::lock_guard<std::mutex> m(waiting_resp_queue_mutex_);
+        auto available_resp_queue = waiting_handle_response_;
+        waiting_handle_response_ = {};
+        return available_resp_queue;
     }
 
   private:
-    void ThreadPoolLoop()
+    void AsyncLoop()
     {
-        ThreadPoolPackage pkg;
+        AsyncPackage pkg;
         while (!stopped_.load())
         {
             std::unique_lock<std::mutex> lk(m_);
@@ -804,8 +876,31 @@ class ThreadPool
             queue_.pop();
             lk.unlock();
             cv_.notify_one();
-            auto resp = pkg.request.Send();
-            if (!pkg.run_in_main_thread)
+            Response resp;
+            String err_msg;
+            if (stopped_.load())
+            {
+                return;
+            }
+            try
+            {
+                resp = pkg.request.Send();
+            }
+            catch (const std::exception& e)
+            {
+                err_msg = e.what();
+            }
+            if (stopped_.load())
+            {
+                return;
+            }
+            if (pkg.received_mode == AsyncResponseReceiveMode::queue)
+            {
+                std::lock_guard<std::mutex> m(waiting_resp_queue_mutex_);
+                waiting_handle_response_.push_back(AsyncResponsePackage{.id = pkg.id, .resp = resp, .err_msg = err_msg});
+                waiting_resp_cv_.notify_all();
+            }
+            else if (pkg.received_mode == AsyncResponseReceiveMode::callback)
             {
                 pkg.callback(resp);
             }
