@@ -27,7 +27,6 @@
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #endif // !SION_DISABLE_SSL
-#define P(X) std::cout << X << std::endl;
 namespace sion
 {
 class Request;
@@ -37,6 +36,18 @@ using std::map;
 using std::pair;
 using std::string;
 using std::vector;
+
+class Error : public std::exception
+{
+  private:
+    std::string msg;
+
+  public:
+    Error() {}
+    Error(std::string msg) : msg(msg) {}
+    ~Error() {}
+    const char* what() const noexcept { return msg.c_str(); }
+};
 
 class String : public string
 {
@@ -162,6 +173,7 @@ class String : public string
         }
         return false;
     }
+
     // 返回搜索到的所有位置
     // flag 定位标志
     // num 搜索数量，默认直到结束
@@ -198,9 +210,9 @@ class String : public string
     }
 };
 
-template <typename ExceptionType> void Throw(String msg = "") { throw ExceptionType(msg.c_str()); }
+template <typename ExceptionType = Error> void Throw(String msg = "") { throw ExceptionType(msg); }
 
-template <typename ExceptionType = std::exception>
+template <typename ExceptionType = Error>
 void check(
     bool condition, String msg = "", std::function<void()> recycle = [] {})
 {
@@ -221,7 +233,7 @@ String GetIpByHost(String hostname)
     hints.ai_family = AF_INET; // ipv4
     if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
     {
-        Throw<std::runtime_error>("错误" + std::to_string(err) + String(gai_strerror(err)));
+        Throw("错误" + std::to_string(err) + String(gai_strerror(err)));
     }
     addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
     char str[INET_ADDRSTRLEN];
@@ -239,7 +251,7 @@ Socket GetSocket()
     if (LOBYTE(inet_WsaData.wVersion) != 2 || HIBYTE(inet_WsaData.wVersion) != 0)
     { // 高位字节指明副版本、低位字节指明主版本
         WSACleanup();
-        Throw<std::runtime_error>("wsa错误");
+        Throw("wsa初始化错误");
     }
 #endif
     auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); // ipv4,tcp,tcp或udp该参数可为0
@@ -335,7 +347,10 @@ class Response
         ParseBody();
     }
 
-    const vector<char>& Body() { return body_; }
+    const vector<char>& Body() const { return body_; }
+    const String Code() const { return code_; };
+    const String Status() const { return status_; };
+    const int ContentLength() const { return content_length_; };
     String StrBody() { return body_.size() == 0 ? "" : std::string(body_.data(), 0, body_.size()); }
     const auto& Header() const { return response_header_; };
 
@@ -366,7 +381,7 @@ class Response
         }
         // 第一行
         auto first_line = data[0].Split(" ", 2);
-        check<std::runtime_error>(first_line.size() == 3, "解析错误\n" + buf_str);
+        check(first_line.size() == 3, "解析错误\n" + buf_str);
         protocol_version_ = first_line[0].Trim();
         code_ = first_line[1].Trim();
         status_ = first_line[2].Trim();
@@ -572,9 +587,9 @@ class Request
 #ifdef _WIN32
             WSACleanup();
 #endif
-            throw std::runtime_error(e.what());
+            Throw(e.what());
         }
-        throw std::runtime_error("");
+        assert(false);
     }
 
   private:
@@ -613,7 +628,7 @@ class Request
 #else
             err += String("error str:") + strerror(errno);
 #endif
-            Throw<std::runtime_error>(err);
+            Throw(err);
         }
     }
 #ifndef SION_DISABLE_SSL
@@ -638,7 +653,7 @@ class Request
                 status = SSL_read(ssl, buf.data(), buf_size - 1);
             }
 #endif
-            check<std::runtime_error>(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
+            check(status >= 0, "网络异常,Socket错误码：error:" + String(strerror(errno)));
             return status;
         };
         Response resp;
@@ -745,8 +760,9 @@ class Async
     std::mutex m_;
     std::condition_variable cv_;
     std::condition_variable waiting_resp_cv_;
-    std::vector<std::thread> threads_;
+    std::map<int, std::thread> threads_;
     bool running_ = false;
+    bool throw_if_has_err_msg = false;
     std::atomic_bool stopped_ = false;
     std::atomic_uint incr_id = 0;
     bool is_block_ = false;
@@ -758,6 +774,9 @@ class Async
     {
         stopped_ = true;
         cv_.notify_all();
+        std::unique_lock<std::mutex> lk(m_);
+        auto& ts = threads_;
+        cv_.wait(lk, [&] { return ts.empty(); }); // 等待所有线程退出
     }
     Async& SetThreadNum(int num)
     {
@@ -767,6 +786,11 @@ class Async
     Async& SetBlock(bool wait)
     {
         is_block_ = wait;
+        return *this;
+    }
+    Async& SetThrowIfHasErrMsg(bool op)
+    {
+        throw_if_has_err_msg = op;
         return *this;
     }
 
@@ -779,6 +803,10 @@ class Async
             if (target.id == id)
             {
                 auto r = queue[i];
+                if (throw_if_has_err_msg && r.err_msg.size())
+                {
+                    Throw(r.err_msg);
+                }
                 queue.erase(queue.begin() + i);
                 return r;
             }
@@ -814,18 +842,21 @@ class Async
         check<std::logic_error>(!running_, "一个线程池实例只能start一次");
         for (size_t i = 0; i < thread_num_; i++)
         {
-            threads_.push_back(std::thread([&] { AsyncLoop(); }));
+            threads_[i] = std::thread([&, i] { AsyncLoop(i); });
         }
         running_ = true;
-        for (auto& i : threads_)
+        if (is_block_)
         {
-            if (is_block_)
+            for (auto& i : threads_)
             {
-                i.join();
+                i.second.join();
             }
-            else
+        }
+        else
+        {
+            for (auto& i : threads_)
             {
-                i.detach();
+                i.second.detach();
             }
         }
     }
@@ -861,7 +892,7 @@ class Async
     }
 
   private:
-    void AsyncLoop()
+    void AsyncLoop(int id)
     {
         AsyncPackage pkg;
         while (!stopped_.load())
@@ -870,17 +901,17 @@ class Async
             cv_.wait(lk, [&] { return !queue_.empty() || stopped_.load(); });
             if (stopped_.load())
             {
-                return;
+                break;
             }
             pkg = queue_.front();
             queue_.pop();
-            lk.unlock();
+            lk.unlock(); // 提前解锁，不等析构再解，防止notify_one拉起后又马上阻塞
             cv_.notify_one();
             Response resp;
             String err_msg;
             if (stopped_.load())
             {
-                return;
+                break;
             }
             try
             {
@@ -892,7 +923,7 @@ class Async
             }
             if (stopped_.load())
             {
-                return;
+                break;
             }
             if (pkg.received_mode == AsyncResponseReceiveMode::queue)
             {
@@ -904,6 +935,11 @@ class Async
             {
                 pkg.callback(resp);
             }
+        }
+        {
+            std::lock_guard<std::mutex> m(m_);
+            threads_.erase(id);
+            cv_.notify_one();
         }
     }
 };

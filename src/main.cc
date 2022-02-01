@@ -31,15 +31,21 @@ int main()
 {
     {
         sion::Async async;
-        sion::String ms_url = "https://visualstudio.microsoft.com/zh-hans/msdn-platforms/";
-        async.SetThreadNum(2).Start();
+        sion::String ms_url = "https://github.com/zanllp/sion";
+        async.Start();
+
         {
             auto id = async.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
 
             auto pkg = async.Await(id);
-            std::cout << pkg.resp.Header().Data().size() << std::endl;
+            std::cout << pkg.resp.Header().Data().size()<< pkg.err_msg << std::endl;
+        }
+        for (size_t i = 0; i < 100; i++)
+        {
+            async.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
         }
     }
+
     // FetchHeader();
     // FetchChunkedHtml();
     // DownloadChunkedFile();
