@@ -11,8 +11,8 @@ void FetchHeader()
 {
 
     auto resp = sion::Fetch("https://github.com/zanllp/sion");
-    std::cout << resp.StrBody().substr(0, 100) << "..." << std::endl << "cache-control: " << resp.Header().Get("cache-control");
-    for (auto&& i : resp.Header().Data())
+    std::cout << resp.StrBody().substr(0, 100) << "..." << std::endl << "cache-control: " << resp.GetHeader().Get("cache-control");
+    for (auto&& i : resp.GetHeader().Data())
     {
         std::cout << "k:" << i.first << "\tv:" << i.second << std::endl;
     }
@@ -67,7 +67,7 @@ void AsyncAwait()
     {
         auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
         auto pkg = async_thread_pool.Await(id);
-        std::cout << "AsyncAwait " << pkg.resp.Header().Data().size() << pkg.err_msg << std::endl;
+        std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
     }
     {
         try

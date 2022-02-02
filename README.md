@@ -14,7 +14,7 @@
 ```cpp
 auto resp = sion::Fetch(ms_url);
 std::cout << resp.StrBody() << std::endl;
-std::cout << resp.Header().Get("content-type") << std::endl;
+std::cout << resp.GetHeader().Get("content-type") << std::endl;
 ```
 ## 链式调用及POST请求
 ```CPP
@@ -53,7 +53,7 @@ async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(
 ```cpp
 auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
         auto pkg = async_thread_pool.Await(id);
-        std::cout << "AsyncAwait " << pkg.resp.Header().Data().size() << pkg.err_msg << std::endl;
+        std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
 // 你可以给await添加超时时间，如果超时会抛出AsyncAwaitTimeout
 try
 {
@@ -110,7 +110,7 @@ String StrBody();
 String Code();
 String Status();
 int ContentLength();
-const Header& Header()；// 获取响应头 参考 [Header](#Header)
+const Header& GetHeader()；// 获取响应头 参考 [Header](#Header)
 ```
 
 ## Request

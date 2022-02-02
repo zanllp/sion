@@ -271,7 +271,7 @@ class Header
   public:
     Header(){};
     ~Header(){};
-    const auto& Data() const { return data; }
+    const vector<pair<String, String>>& Data() const { return data; }
     bool Remove(String key)
     {
         for (size_t i = 0; i < data.size(); i++)
@@ -357,7 +357,7 @@ class Response
     const String Status() const { return status_; };
     const int ContentLength() const { return content_length_; };
     String StrBody() { return body_.size() == 0 ? "" : std::string(body_.data(), 0, body_.size()); }
-    const auto& Header() const { return response_header_; };
+    const Header& GetHeader() const { return response_header_; };
 
   private:
     size_t resp_body_start_pos_ = -1;
@@ -587,7 +587,7 @@ class Request
 #endif
             Throw(e.what());
         }
-        assert(false);
+        throw Error("unreachable code");
     }
 
   private:
@@ -793,7 +793,7 @@ class Async
         return *this;
     }
 
-    auto GetTargetResp(uint id)
+    AsyncResponse GetTargetResp(uint id)
     {
         auto& queue = waiting_handle_response_;
         for (size_t i = 0; i < queue.size(); i++)
@@ -810,10 +810,10 @@ class Async
                 return r;
             }
         }
-        assert(false);
+        throw Error("unreachable code");
     }
 
-    auto Await(uint id, uint timeout_ms = 0)
+    AsyncResponse Await(uint id, uint timeout_ms = 0)
     {
         std::unique_lock<std::mutex> lk(waiting_resp_queue_mutex_);
         auto& queue = waiting_handle_response_;
@@ -871,12 +871,16 @@ class Async
         }
     }
 
-    auto Run(std::function<Request()> fn)
+    uint Run(std::function<Request()> fn)
     {
         auto id = ++incr_id;
         {
             std::lock_guard<std::mutex> lock(m_);
-            queue_.push(AsyncPackage{.request = fn(), .id = id, .received_mode = AsyncResponseReceiveMode::queue});
+            AsyncPackage pkg;
+            pkg.request = fn();
+            pkg.id = id;
+            pkg.received_mode = AsyncResponseReceiveMode::queue;
+            queue_.push(pkg);
         }
         cv_.notify_one();
         return id;
@@ -886,12 +890,16 @@ class Async
     {
         {
             std::lock_guard<std::mutex> lock(m_);
-            queue_.push(AsyncPackage{.callback = cb, .request = fn(), .received_mode = AsyncResponseReceiveMode::callback});
+            AsyncPackage pkg;
+            pkg.callback = cb;
+            pkg.request = fn();
+            pkg.received_mode = AsyncResponseReceiveMode::callback;
+            queue_.push(pkg);
         }
         cv_.notify_one();
     }
 
-    auto GetAvailableResponse()
+    std::vector<AsyncResponse> GetAvailableResponse()
     {
         std::lock_guard<std::mutex> m(waiting_resp_queue_mutex_);
         auto available_resp_queue = waiting_handle_response_;
@@ -933,7 +941,10 @@ class Async
             {
                 break;
             }
-            AsyncResponse resp_pkg{.id = pkg.id, .resp = resp, .err_msg = err_msg};
+            AsyncResponse resp_pkg;
+            resp_pkg.id = pkg.id;
+            resp_pkg.resp = resp;
+            resp_pkg.err_msg = err_msg;
             if (pkg.received_mode == AsyncResponseReceiveMode::queue)
             {
                 std::lock_guard<std::mutex> m(waiting_resp_queue_mutex_);
