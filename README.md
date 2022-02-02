@@ -41,11 +41,14 @@ async_thread_pool.Start(); // 启动线程池，创建子线程，子线程接�
 ### 添加请求到线程池，并接受响应
 sion::Async处理异步有3种方式
 1. 使用回调
+
 ```cpp
 async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); },
                           [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
 ```
+
 2. 使用await
+
 在无回调时提交任务到线程池会返回给你一个id，通过这个id我们可以使用await在当前线程上等待请求完成
 ```cpp
 auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
@@ -64,6 +67,8 @@ catch (const std::exception& e)
 ```
 
 3. 使用GetAvailableResponse
+
+
 这种方式是通过不断获取调取此函数来获取想要的响应，主要还是方便与事件循环集成。
 ```cpp
  const int num = 100;
