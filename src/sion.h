@@ -738,20 +738,23 @@ enum AsyncResponseReceiveMode
     queue,
     future
 };
-struct AsyncPackage
-{
-    Request request;
-    std::function<void(Response)> callback;
-    unsigned int id;
-    AsyncResponseReceiveMode received_mode;
-};
 
-struct AsyncResponsePackage
+
+struct AsyncResponse
 {
     Response resp;
     unsigned int id;
     String err_msg;
 };
+
+struct AsyncPackage
+{
+    Request request;
+    std::function<void(AsyncResponse)> callback;
+    unsigned int id;
+    AsyncResponseReceiveMode received_mode;
+};
+
 
 class Async
 {
@@ -767,7 +770,7 @@ class Async
     std::atomic_uint incr_id = 0;
     bool is_block_ = false;
     std::mutex waiting_resp_queue_mutex_;
-    std::vector<AsyncResponsePackage> waiting_handle_response_;
+    std::vector<AsyncResponse> waiting_handle_response_;
 
   public:
     ~Async()
@@ -872,7 +875,7 @@ class Async
         return id;
     }
 
-    auto Run(std::function<Request()> fn, std::function<void(Response)> cb)
+    auto Run(std::function<Request()> fn, std::function<void(AsyncResponse)> cb)
     {
         auto id = ++incr_id;
         {
@@ -925,15 +928,16 @@ class Async
             {
                 break;
             }
+            AsyncResponse resp_pkg{.id = pkg.id, .resp = resp, .err_msg = err_msg};
             if (pkg.received_mode == AsyncResponseReceiveMode::queue)
             {
                 std::lock_guard<std::mutex> m(waiting_resp_queue_mutex_);
-                waiting_handle_response_.push_back(AsyncResponsePackage{.id = pkg.id, .resp = resp, .err_msg = err_msg});
+                waiting_handle_response_.push_back(resp_pkg);
                 waiting_resp_cv_.notify_all();
             }
             else if (pkg.received_mode == AsyncResponseReceiveMode::callback)
             {
-                pkg.callback(resp);
+                pkg.callback(resp_pkg);
             }
         }
         {
