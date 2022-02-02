@@ -602,7 +602,6 @@ class Request
         }
         source_ += "\r\n";
         source_ += request_body_;
-        std::cout<<source_<<std::endl;
     }
 
     void Connection(Socket socket, String host)

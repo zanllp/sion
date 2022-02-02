@@ -92,10 +92,10 @@ int main()
 {
     async_thread_pool.Start();
 
-    // FetchHeader();
-    // FetchChunkedHtml();
-    // DownloadChunkedFile();
-    // PostRequest();
+    FetchHeader();
+    FetchChunkedHtml();
+    DownloadChunkedFile();
+    PostRequest();
     AsyncAwait();
     AsyncCallback();
     AsyncGetAvailableResponse();
