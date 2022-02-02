@@ -49,9 +49,11 @@ async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(
 
 2. 使用await
 
-在无回调时提交任务到线程池会返回给你一个id，通过这个id我们可以使用await在当前线程上等待请求完成
+在无回调时提交任务到线程池会返回给你一个id，通过这个id我们可以使用await在当前线程上等待请求完成。
+
 ```cpp
 auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+// 在Run后的这段时间里当前线程可以先去干其他的活，等待需要使用响应时再使用await获取响应。
 auto pkg = async_thread_pool.Await(id);
 std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
 // 你可以给await添加超时时间，如果超时会抛出AsyncAwaitTimeout
@@ -71,22 +73,22 @@ catch (const std::exception& e)
 
 这种方式是通过不断获取调取此函数来获取想要的响应，主要还是方便与事件循环集成。
 ```cpp
-    const int num = 100;
-    for (size_t i = 0; i < num; i++)
-    {
-        async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
-    }
-    int i = 0;
-    while (i <= num)
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        auto async_resps = async_thread_pool.GetAvailableResponse();
-        if (async_resps.size())
-        {
-            i += async_resps.size();
-            std::cout << "AsyncGetAvailableResponse got resp size:" << async_resps.size() << std::endl;
-        }
-    }
+const int num = 100;
+for (size_t i = 0; i < num; i++)
+{
+    async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+}
+int i = 0;
+while (i <= num)
+{
+   std::this_thread::sleep_for(std::chrono::seconds(1));
+   auto async_resps = async_thread_pool.GetAvailableResponse();
+   if (async_resps.size())
+   {
+       i += async_resps.size();
+       std::cout << "AsyncGetAvailableResponse got resp size:" << async_resps.size() << std::endl;
+   }
+}
 ```
 ### AsyncResponse
 上面几种方式都会返回AsyncResponse，通过这个可以获取异步请求的响应体，id，以及错误信息
