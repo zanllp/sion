@@ -50,7 +50,7 @@ void AsyncGetAvailableResponse()
         async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
     }
     int i = 0;
-    while (i != num)
+    while (i <= num)
     {
         std::this_thread::sleep_for(std::chrono::seconds(1));
         auto async_resps = async_thread_pool.GetAvailableResponse();
@@ -64,15 +64,28 @@ void AsyncGetAvailableResponse()
 
 void AsyncAwait()
 {
-    auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
-    auto pkg = async_thread_pool.Await(id);
-    std::cout << "AsyncAwait " << pkg.resp.Header().Data().size() << pkg.err_msg << std::endl;
+    {
+        auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+        auto pkg = async_thread_pool.Await(id);
+        std::cout << "AsyncAwait " << pkg.resp.Header().Data().size() << pkg.err_msg << std::endl;
+    }
+    {
+        try
+        {
+            auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+            auto pkg = async_thread_pool.Await(id, 10);
+        }
+        catch (const std::exception& e)
+        {
+            std::cerr << e.what() << '\n';
+        }
+    }
 }
 
 void AsyncCallback()
 {
     async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); },
-              [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
+                          [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
 }
 
 int main()
