@@ -52,8 +52,8 @@ async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(
 在无回调时提交任务到线程池会返回给你一个id，通过这个id我们可以使用await在当前线程上等待请求完成
 ```cpp
 auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
-        auto pkg = async_thread_pool.Await(id);
-        std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
+auto pkg = async_thread_pool.Await(id);
+std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
 // 你可以给await添加超时时间，如果超时会抛出AsyncAwaitTimeout
 try
 {
@@ -71,7 +71,7 @@ catch (const std::exception& e)
 
 这种方式是通过不断获取调取此函数来获取想要的响应，主要还是方便与事件循环集成。
 ```cpp
- const int num = 100;
+    const int num = 100;
     for (size_t i = 0; i < num; i++)
     {
         async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
