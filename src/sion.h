@@ -83,8 +83,7 @@ class String : public string
     vector<String> Split(String flag, int num = -1, bool skip_empty = true) const
     {
         vector<String> data_set;
-        auto push_data = [&](String line)
-        {
+        auto push_data = [&](String line) {
             if (line.length() != 0 || !skip_empty)
             {
                 data_set.push_back(line);
@@ -416,8 +415,7 @@ class Response
         vector<char> pure_source_char;
         // 获取下一个\r\n的位置
         int crlf_pos = 0;
-        auto get_next_crlf = [&](int leap)
-        {
+        auto get_next_crlf = [&](int leap) {
             for (int i = crlf_pos + leap; i < (sc.size() - 1); i++)
             {
                 if (sc[i] == '\r' && sc[i + 1] == '\n')
@@ -637,8 +635,7 @@ class Request
     {
         const int buf_size = 2048;
         array<char, buf_size> buf{0};
-        auto Read = [&]()
-        {
+        auto Read = [&]() {
             buf.fill(0);
             int status = 0;
             if (protocol_ == "http")
@@ -651,7 +648,7 @@ class Request
                 status = SSL_read(ssl, buf.data(), buf_size - 1);
             }
 #endif
-            check(status >= 0, "网络异常,Socket错误码：error:" + String(strerror(errno)));
+            check(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
             return status;
         };
         Response resp;
@@ -672,8 +669,7 @@ class Request
 
         resp.ParseHeader();
         // 检查是否接收完
-        auto check_end = [&]
-        {
+        auto check_end = [&] {
             const auto& body = resp.Body();
             if (resp.is_chunked_)
             {
@@ -740,7 +736,7 @@ enum AsyncResponseReceiveMode
 struct AsyncResponse
 {
     Response resp;
-    uint id;
+    int id;
     String err_msg;
 };
 
@@ -748,7 +744,7 @@ struct AsyncPackage
 {
     Request request;
     std::function<void(AsyncResponse)> callback;
-    uint id;
+    int id;
     AsyncResponseReceiveMode received_mode;
 };
 
@@ -763,7 +759,7 @@ class Async
     bool running_ = false;
     bool throw_if_has_err_msg = false;
     std::atomic_bool stopped_ = false;
-    std::atomic_uint incr_id = 0;
+    std::atomic_int incr_id = 0;
     bool is_block_ = false;
     std::mutex waiting_resp_queue_mutex_;
     std::vector<AsyncResponse> waiting_handle_response_;
@@ -793,7 +789,7 @@ class Async
         return *this;
     }
 
-    AsyncResponse GetTargetResp(uint id)
+    AsyncResponse GetTargetResp(int id)
     {
         auto& queue = waiting_handle_response_;
         for (size_t i = 0; i < queue.size(); i++)
@@ -813,12 +809,11 @@ class Async
         throw Error("unreachable code");
     }
 
-    AsyncResponse Await(uint id, uint timeout_ms = 0)
+    AsyncResponse Await(int id, int timeout_ms = 0)
     {
         std::unique_lock<std::mutex> lk(waiting_resp_queue_mutex_);
         auto& queue = waiting_handle_response_;
-        auto check = [&]
-        {
+        auto check = [&] {
             for (auto& i : queue)
             {
                 if (i.id == id)
@@ -871,7 +866,7 @@ class Async
         }
     }
 
-    uint Run(std::function<Request()> fn)
+    int Run(std::function<Request()> fn)
     {
         auto id = ++incr_id;
         {
@@ -953,15 +948,14 @@ class Async
             }
             else if (pkg.received_mode == AsyncResponseReceiveMode::callback)
             {
-               try
-               {
+                try
+                {
                     pkg.callback(resp_pkg);
-               }
-               catch(const std::exception& e)
-               {
-                   std::cerr << e.what() << '\n';
-               }
-
+                }
+                catch (const std::exception& e)
+                {
+                    std::cerr << e.what() << '\n';
+                }
             }
         }
         {
