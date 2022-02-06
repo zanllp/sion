@@ -16,6 +16,7 @@ else()
 endif()
 
 add_executable(sion ${DIR_SRCS})
+target_link_libraries(sion PRIVATE pthread)
 
 if(DEFINED VCPKG_PATH)
   target_link_libraries(sion PRIVATE OpenSSL::SSL OpenSSL::Crypto)
