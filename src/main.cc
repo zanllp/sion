@@ -88,10 +88,18 @@ void AsyncCallback()
                           [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
 }
 
+void RequestWithProxy()
+{
+    sion::HttpProxy proxy{10080, "127.0.0.1"};
+    auto resp = sion::Request().SetProxy(proxy).SetUrl("http://google.com").SetHttpMethod("GET").Send();
+    std::cout << "google server: " << resp.GetHeader().Get("server") << std::endl;
+}
+
 int main()
 {
     async_thread_pool.Start();
 
+    // RequestWithProxy();
     FetchHeader();
     FetchChunkedHtml();
     DownloadChunkedFile();
