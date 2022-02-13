@@ -570,11 +570,11 @@ class Request
 #else
         std::regex url_parse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
         regex_match(url, m, url_parse);
-        check<std::invalid_argument>(!enable_proxy_, "https暂时不支持代理");
         check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
         protocol_ = m[1];
         port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
+        check<std::invalid_argument>(!(protocol_ == "https" && enable_proxy_), "https暂时不支持代理");
         host_ = m[2];
         path_ = m[4].length() == 0 ? "/" : m[4].str();
         Socket socket = GetSocket();
