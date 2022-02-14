@@ -26,8 +26,9 @@ auto resp = Request()
 			.Send();
 ```
 
+
 ## 异步请求
-sion在此版本后对异步增加了巨大的支持，相对于之前的版本依旧保持了同步api+异步库的方式，尽可能保持简单轻量，尽管性能不是很理想但性能从来就不是sion的最优先考虑的东西。
+sion在此版本后对异步增加了巨大的支持，相对于之前的版本依旧保持了同步api+异步库的方式，尽可能保持简单轻量，尽管性能不是很理想但性能从来就不是sion的最优先考虑的东西，但性能也不算太差 [粗略的性能参考](#粗略的性能参考)。
 
 sion的异步支持依赖于sion内置的Async线程池，函数可参考[Async](#Async)。
 
@@ -213,3 +214,6 @@ std::vector<int> FindAll(String flag, int num = -1);
 //字符串替换，会修改原有的字符串，而不是返回新的
 String& Replace(String old_str, String new_str);
 ~~~
+# 粗略的性能参考
+12小时请求270万次。占用内存10m，cpu负载2%左右。cpu是AMD Ryzen 7 PRO 4750U
+![PF9Q_G L~B_EFDKL2 X9 XL](https://user-images.githubusercontent.com/25872019/153871447-3e4be3e9-3b86-43a7-8ea6-85696c785dca.jpg)
