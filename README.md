@@ -104,7 +104,7 @@ while (i <= num)
 ## Fetch
 ~~~cpp
 // 静态请求方法
-Response Fetch(String url, Method method = Get, vector<pair<String, String>> header = {}, String body = "");
+Response Fetch(String url, Method method = Get, Header header = Header(), String body = "");
 ~~~
 
 ## Response
