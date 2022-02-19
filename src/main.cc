@@ -1,3 +1,4 @@
+
 #include "sion.h"
 #include <chrono>
 #include <fstream>
@@ -95,10 +96,45 @@ void RequestWithProxy()
     std::cout << "google server: " << resp.GetHeader().Get("server") << std::endl;
 }
 
+sion::Payload::Binary LoadFile(sion::String path, sion::String type)
+{
+    std::fstream file(path, std::ios_base::in);
+    sion::Payload::Binary bin;
+    bin.file_name = path;
+    bin.type = type;
+    const int size = 1000;
+    std::array<char, size> buf;
+    while (file.good())
+    {
+        file.read(buf.data(), size - 1);
+        bin.data.insert(bin.data.end(), buf.begin(), buf.begin() + file.gcount());
+    }
+    return bin;
+}
+
+void PostBinaryData()
+{
+    auto file = LoadFile("hello.jpeg", "image/jpeg");
+    {
+
+        sion::Payload::FormData form;
+        form.Append("helo", "world");
+        form.Append("hello2", "world");
+        form.Append("file", file);
+        form.Append("agumi", "script runtime");
+        form.Remove("agumi");
+        auto req = sion::Request().SetUrl("http://www.httpbin.org/post").SetBody(form).SetHttpMethod("POST").Send();
+        std::cout << "post binary data with FormData  " << req.Code() << req.StrBody();
+    }
+
+    {
+        auto req = sion::Request().SetUrl("http://www.httpbin.org/post").SetBody(file).SetHttpMethod("POST").Send();
+        std::cout << "post binary data with Binary  " << req.Code() << req.StrBody();
+    }
+}
 int main()
 {
     async_thread_pool.Start();
-
     // RequestWithProxy();
     FetchHeader();
     FetchChunkedHtml();
@@ -107,5 +143,6 @@ int main()
     AsyncAwait();
     AsyncCallback();
     AsyncGetAvailableResponse();
+    PostBinaryData();
     return 1;
 }
