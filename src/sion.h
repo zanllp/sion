@@ -31,17 +31,10 @@ namespace sion
 {
 class Request;
 class Response;
-using std::array;
-using std::map;
-using std::pair;
-using std::string;
-using std::vector;
 
 class Error : public std::exception
 {
-  private:
     std::string msg;
-
   public:
     Error() {}
     Error(std::string msg) : msg(msg) {}
@@ -52,21 +45,27 @@ class Error : public std::exception
 class AsyncAwaitTimeout : public Error
 {
   public:
-    AsyncAwaitTimeout(std::string msg) : Error(msg) {}
+    AsyncAwaitTimeout(std::string msg = "await timeout") : Error(msg) {}
 };
 
-class String : public string
+class PeerConnectionClose : public Error
+{
+  public:
+    PeerConnectionClose(std::string msg = "对方关闭了连接") : Error(msg) {}
+};
+
+class String : public std::string
 {
   public:
     String(){};
     ~String(){};
-    template <class T> String(T&& arg) : string(std::forward<T>(arg)) {}
+    template <class T> String(T&& arg) : std::string(std::forward<T>(arg)) {}
 
-    String(int arg) : string(std::to_string(arg)) {}
+    String(int arg) : std::string(std::to_string(arg)) {}
 
-    String(unsigned long arg) : string(std::to_string(arg)) {}
+    String(unsigned long arg) : std::string(std::to_string(arg)) {}
 
-    String(double arg) : string(std::to_string(arg)) {}
+    String(double arg) : std::string(std::to_string(arg)) {}
 
     String(bool arg) { (*this) = arg ? "true" : "false"; }
 
@@ -80,9 +79,9 @@ class String : public string
     // flag 分割标志,返回的字符串向量会剔除,flag不要用char，会重载不明确
     // num 分割次数，默认-1即分割到结束，例num=1,返回开头到flag,flag到结束size=2的字符串向量
     // skip_empty 跳过空字符串，即不压入length==0的字符串
-    vector<String> Split(String flag, int num = -1, bool skip_empty = true) const
+    std::vector<String> Split(String flag, int num = -1, bool skip_empty = true) const
     {
-        vector<String> data_set;
+        std::vector<String> data_set;
         auto push_data = [&](String line) {
             if (line.length() != 0 || !skip_empty)
             {
@@ -92,7 +91,7 @@ class String : public string
         auto pos = FindAll(flag, num);
         if (pos.size() == 0)
         {
-            return vector<String>({*this});
+            return std::vector<String>({*this});
         }
         for (auto i = 0; i < pos.size() + 1; i++)
         {
@@ -182,9 +181,9 @@ class String : public string
     // 返回搜索到的所有位置
     // flag 定位标志
     // num 搜索数量，默认直到结束
-    vector<int> FindAll(String flag, int num = -1) const
+    std::vector<int> FindAll(String flag, int num = -1) const
     {
-        vector<int> result;
+        std::vector<int> result;
         auto pos = find(flag);
         auto flag_offset = flag.length() == 0 ? 1 : flag.length();
         while (pos != -1 && result.size() != num)
@@ -206,7 +205,7 @@ class String : public string
             return *this;
         }
         auto pos = find(old_str);
-        if (pos == string::npos)
+        if (pos == std::string::npos)
         {
             return *this;
         }
@@ -262,15 +261,25 @@ Socket GetSocket()
     auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); // ipv4,tcp,tcp或udp该参数可为0
     return tcp_socket;
 }
+namespace Payload
+{
+class FormData
+{
+  private:
+    /* data */
+  public:
+    FormData(/* args */) {}
+    ~FormData() {}
+};
+} // namespace Payload
 
 class Header
 {
-    vector<pair<String, String>> data;
-
   public:
+    using RawT = typename std::vector<std::pair<sion::String, sion::String>>;
     Header(){};
     ~Header(){};
-    const vector<pair<String, String>>& Data() const { return data; }
+    const RawT& Data() const { return data; }
     bool Remove(String key)
     {
         for (size_t i = 0; i < data.size(); i++)
@@ -289,14 +298,14 @@ class Header
         {
         }
     }
-    Header(const vector<pair<String, String>>& other) noexcept { data = other; }
+    Header(const RawT& other) noexcept { data = other; }
     // 添加一个键值对到头中
     void Add(String k, String v) { data.push_back({k, v}); }
     // 获取头的键所对应的所有值
-    vector<String> GetAll(String key) const
+    std::vector<String> GetAll(String key) const
     {
         key = key.ToLowerCase();
-        vector<String> res;
+        std::vector<String> res;
         for (auto& i : data)
         {
             if (i.first == key)
@@ -319,6 +328,9 @@ class Header
         }
         return "";
     }
+
+  private:
+    RawT data;
 };
 
 enum class Method
@@ -338,7 +350,7 @@ class Response
     String protocol_version_;
     String code_;
     String status_;
-    vector<char> body_;      // 响应体
+    std::vector<char> body_; // 响应体
     Header response_header_; // 响应头
   public:
     Response(){};
@@ -351,7 +363,7 @@ class Response
         ParseBody();
     }
 
-    const vector<char>& Body() const { return body_; }
+    const std::vector<char>& Body() const { return body_; }
     const String Code() const { return code_; };
     const String Status() const { return status_; };
     const int ContentLength() const { return content_length_; };
@@ -412,7 +424,7 @@ class Response
         {
             return;
         }
-        vector<char> pure_source_char;
+        std::vector<char> pure_source_char;
         // 获取下一个\r\n的位置
         int crlf_pos = 0;
         auto get_next_crlf = [&](int leap) {
@@ -430,9 +442,9 @@ class Response
         int right = get_next_crlf(0);
         while (left != -1 && right != -1)
         {
-            auto count = string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
-            auto count_num = stoi(count, nullptr, 16);                      // 那数量是16进制
-            if (count_num == 0)                                             // 最后一个 0\r\n\r\n，退出
+            auto count = std::string(sc.begin() + 2 + left, sc.begin() + right); // 每个分块开头写的数量
+            auto count_num = stoi(count, nullptr, 16);                           // 那数量是16进制
+            if (count_num == 0)                                                  // 最后一个 0\r\n\r\n，退出
             {
                 break;
             }
@@ -510,7 +522,15 @@ class Request
         return *this;
     }
 
-    Request& SetHeader(vector<pair<String, String>> header)
+    Request& SetBody(Payload::FormData body)
+    {
+        request_header_.RemoveAll("content-type");
+        request_header_.Add("Content-Type", "multipart/form-data");
+        // request_body_ = body;
+        return *this;
+    }
+
+    Request& SetHeader(Header header)
     {
         request_header_ = header;
         return *this;
@@ -658,7 +678,7 @@ class Request
 #endif
     {
         const int buf_size = 2048;
-        array<char, buf_size> buf{0};
+        std::array<char, buf_size> buf{0};
         auto Read = [&]() {
             buf.fill(0);
             int status = 0;
@@ -672,7 +692,8 @@ class Request
                 status = SSL_read(ssl, buf.data(), buf_size - 1);
             }
 #endif
-            check(status >= 0, "网络异常,Socket错误码：" + std::to_string(status));
+            check<PeerConnectionClose>(status != 0);
+            check(status > 0, "网络异常,Socket错误码：" + std::to_string(status));
             return status;
         };
         Response resp;
@@ -703,7 +724,7 @@ class Request
                 }
                 auto chunked_end_offset = body.size() - 4;
                 auto chunked_end_iter = body.begin() + chunked_end_offset;
-                auto chunked_end = string(chunked_end_iter, chunked_end_iter + 4);
+                auto chunked_end = std::string(chunked_end_iter, chunked_end_iter + 4);
                 if (chunked_end != "\r\n\r\n")
                 {
                     return false;
@@ -746,7 +767,7 @@ class Request
     }
 };
 
-Response Fetch(String url, Method method = Method::Get, vector<pair<String, String>> header = {}, String body = "")
+Response Fetch(String url, Method method = Method::Get, Header header = Header(), String body = "")
 {
     return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 }
@@ -856,7 +877,7 @@ class Async
             waiting_resp_cv_.wait_for(lk, std::chrono::milliseconds(timeout_ms), check);
             if (!check())
             {
-                throw AsyncAwaitTimeout("await timeout");
+                throw AsyncAwaitTimeout();
             }
         }
         else
