@@ -228,7 +228,7 @@ void check(
     }
 }
 using Socket = int;
-String GetIpByHost(String hostname)
+static String GetIpByHost(String hostname)
 {
     addrinfo hints, *res;
     in_addr addr;
@@ -247,7 +247,7 @@ String GetIpByHost(String hostname)
     return str;
 }
 
-Socket GetSocket()
+static Socket GetSocket()
 {
 #ifdef _WIN32
     // 初始化。,WSA windows异步套接字
@@ -265,7 +265,7 @@ Socket GetSocket()
 
 const String crlf = "\r\n";
 const String crlf_crlf = "\r\n\r\n";
-void PushStr2Vec(const String& str, std::vector<char>& vec) { vec.insert(vec.end(), str.begin(), str.end()); }
+static void PushStr2Vec(const String& str, std::vector<char>& vec) { vec.insert(vec.end(), str.begin(), str.end()); }
 
 namespace Payload
 {
@@ -852,7 +852,7 @@ class Request
     }
 };
 
-Response Fetch(String url, Method method = Method::Get, Header header = Header(), String body = "")
+static Response Fetch(String url, Method method = Method::Get, Header header = Header(), String body = "")
 {
     return Request().SetUrl(url).SetHttpMethod(method).SetHeader(header).SetBody(body).Send();
 }
