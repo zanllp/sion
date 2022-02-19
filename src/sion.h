@@ -446,6 +446,12 @@ class Response
     }
 };
 
+struct HttpProxy
+{
+    int port;
+    String host;
+};
+
 class Request
 {
     String source_;
@@ -458,11 +464,13 @@ class Request
     String request_body_;
     String protocol_version_ = "HTTP/1.1";
     Header request_header_;
+    HttpProxy proxy_;
+    bool enable_proxy_ = false;
+    int port_ = 80;
 
   public:
     Request(){};
     ~Request(){};
-    int port_ = 80;
 
     Request& SetHttpMethod(sion::Method method)
     {
@@ -514,6 +522,13 @@ class Request
         return *this;
     }
 
+    Request& SetProxy(HttpProxy proxy)
+    {
+        enable_proxy_ = true;
+        proxy_ = proxy;
+        return *this;
+    }
+
     Response Send(sion::Method method, String url)
     {
         SetHttpMethod(method);
@@ -559,6 +574,7 @@ class Request
         protocol_ = m[1];
         port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
+        check<std::invalid_argument>(!(protocol_ == "https" && enable_proxy_), "https暂时不支持代理");
         host_ = m[2];
         path_ = m[4].length() == 0 ? "/" : m[4].str();
         Socket socket = GetSocket();
@@ -593,7 +609,8 @@ class Request
     {
         request_header_.Add("Host", host_);
         request_header_.Add("Content-Length", std::to_string(request_body_.length()));
-        source_ = method_ + " " + path_ + " " + protocol_version_ + "\r\n";
+        auto request_target = enable_proxy_ ? url_ : path_;
+        source_ = method_ + " " + request_target + " " + protocol_version_ + "\r\n";
         for (auto& x : request_header_.Data())
         {
             source_ += x.first + ": " + x.second + "\r\n";
@@ -606,19 +623,26 @@ class Request
     {
         in_addr sa;
         ip_ = host.HasLetter() ? GetIpByHost(host) : host;
+        auto target_ip = enable_proxy_ ? (proxy_.host.HasLetter() ? GetIpByHost(proxy_.host) : proxy_.host) : ip_;
 #ifdef _WIN32
-        check<std::invalid_argument>((InetPton(AF_INET, ip_.c_str(), &sa) != -1), "地址转换错误");
+        check<std::invalid_argument>((InetPton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
 #else
-        check<std::invalid_argument>((inet_pton(AF_INET, ip_.c_str(), &sa) != -1), "地址转换错误");
+        check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
 #endif
         sockaddr_in saddr;
         saddr.sin_family = AF_INET;
-        saddr.sin_port = htons(port_);
+        saddr.sin_port = htons(enable_proxy_ ? proxy_.port : port_);
         saddr.sin_addr = sa;
         if (::connect(socket, (sockaddr*)&saddr, sizeof(saddr)) != 0)
         {
-            String err = "连接失败:\nHost:" + host_ + "\n";
+            String err = "连接失败:\n";
+            err += "Host:" + host_ + "\n";
             err += "Ip:" + ip_ + "\n";
+            if (enable_proxy_)
+            {
+                err += "Proxy IP:" + target_ip + "\n";
+                err += "Proxy Host:" + proxy_.host + "\n";
+            }
 #ifdef _WIN32
             err += "错误码：" + std::to_string(WSAGetLastError());
 #else
