@@ -124,11 +124,12 @@ void PostBinaryData()
         form.Append("agumi", "script runtime");
         form.Remove("agumi");
         auto req = sion::Request().SetUrl("http://www.httpbin.org/post").SetBody(form).SetHttpMethod("POST").Send();
-        std::cout << "post binary data with FormData" << req.Code() << req.StrBody();
+        std::cout << "post binary data with FormData  " << req.Code() << req.StrBody();
     }
+
     {
         auto req = sion::Request().SetUrl("http://www.httpbin.org/post").SetBody(file).SetHttpMethod("POST").Send();
-        std::cout << "post binary data with Binary" << req.Code() << req.StrBody();
+        std::cout << "post binary data with Binary  " << req.Code() << req.StrBody();
     }
 }
 int main()

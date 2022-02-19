@@ -598,6 +598,11 @@ class Request
     {
         request_body_.clear();
         request_body_.insert(request_body_.begin(), body.data.begin(), body.data.end());
+        if (body.type != "")
+        {
+            request_header_.RemoveAll("Content-Type");
+            request_header_.Add("Content-Type", body.type);
+        }
         return *this;
     }
 

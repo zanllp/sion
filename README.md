@@ -2,12 +2,15 @@
 # 特性
 * Sion是一个轻量级简单易用的c++ http客户端
 * 仅单个头文件，自带std::string的扩展
-* 跨平台，支持linux,win, mac...
-* 有着良好的异步支持，可以选择以自己喜欢的方式发送异步请求，callback，await，事件循环，etc.
+* 跨平台，支持linux, win, mac...
+* 有着良好的异步支持，可以选择以自己喜欢的方式发送异步请求, callback, await, 事件循环, etc.
 * 支持文本及二进制的响应体
 * 支持分块(chunked)的传输编码
+* 支持FormData&单独的二进制载荷请求
+* 支持代理(仅http)
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
 # 用法
+
 ## 导入
 直接复制[sion.h](src/sion.h)到自己的项目下`include`
 ## 最普通的GET请求
@@ -95,7 +98,8 @@ while (i <= num)
 上面几种方式都会返回AsyncResponse，通过这个可以获取异步请求的响应体，id，以及错误信息
 
 ## 更多用法
-[参考](./src/main.cc)
+包含平凡请求,代理,二进制数据发送,FormData,Async等
+[查看参考](./src/main.cc)
 # 类&函数定义
 ## Fetch
 ~~~cpp
@@ -122,13 +126,13 @@ const Header& GetHeader()；// 获取响应头 参考 [Header](#Header)
 //支持链式设置属性
 Request& SetHttpMethod(String other) ;
 Request& SetUrl(String url);
-Request& SetBody(String body);
-Request& SetHeader(vector<pair<String, String>> header);
+Request& SetBody(String body);  // 设置响应体，字符串
+Request& SetBody(Payload::Binary body);  // 设置响应体，二进制文件
+Request& SetBody(Payload::FormData body);  // 设置响应体，表单数据
+Request& SetHeader(Header header);
 Request& SetHeader(String k, String v);
-
-//发送请求
-Response Send(String url);
-Response Send(Method method, String url);
+Request& SetProxy(HttpProxy proxy); // 设置代理，仅在http可用
+Response Send(); // 发送请求
 ~~~
 
 ## Header
@@ -169,18 +173,38 @@ Async& SetThrowIfHasErrMsg(bool op);
 void Start();
 
 // 添加一个请求到线程池的任务队列, 返回一个请求的id,id可用于await或者是查找对应的请求
-uint Run(std::function<Request()> fn);
+int Run(std::function<Request()> fn);
 
 // 添加一个请求和回调到线程池的任务队列,在请求完成后会在请求的线程执行回调
 void Run(std::function<Request()> fn, std::function<void(AsyncResponse)> cb);
 
 //在当前线程等待直到目标请求可用。id:Async::Run返回的id,timeout_ms 超时时间单位毫秒，默认永不超时
-AsyncResponse Await(uint id, uint timeout_ms);
+AsyncResponse Await(int id, int timeout_ms);
 
 // 获得当前可用的响应，如果你添加一个请求到线程池的任务队列，且没有回调或者使用await取获取，那么可用通过这种方式获取。适用场合是一般是在事件循环里面
 vector<AsyncResponse>  GetAvailableResponse();
 ```
+## Payload
+Payload名称空间包含2种请求体可用的数据
+```cpp
+namespace Payload
+{
+struct Binary
+{
+    std::vector<char> data; // 数据本体
+    String file_name; // 文件名，在提交formdata如果写了,则会带上文件名的信息
+    String type; // 文件mime类型，如果写了在直接使用二进制时会添加到正文的Content-Type,在formdata则是添加到子部分的
+};
 
+class FormData
+{
+    void Append(String name, Binary value); // 添加一个新的二进制值
+    void Append(String name, String value); // 添加一个新的字符串键  
+    bool Remove(String key); // 移除一项，返回是否成功
+    const std::vector<std::pair<String, std::vector<char>>>& Data() const; // 返回数据本体
+};
+}
+```
 
 ## String
 该类继承std::string，用法基本一致，拓展了几个函数
@@ -214,6 +238,16 @@ std::vector<int> FindAll(String flag, int num = -1);
 //字符串替换，会修改原有的字符串，而不是返回新的
 String& Replace(String old_str, String new_str);
 ~~~
+
+Proxy
+```cpp
+struct HttpProxy
+{
+    int port; // 目标端口
+    String host; // 目标主机，ip
+};
+```
+
 # 粗略的性能参考
 12小时请求270万次。占用内存10m，cpu负载2%左右。cpu是AMD Ryzen 7 PRO 4750U
 ![PF9Q_G L~B_EFDKL2 X9 XL](https://user-images.githubusercontent.com/25872019/153871447-3e4be3e9-3b86-43a7-8ea6-85696c785dca.jpg)
