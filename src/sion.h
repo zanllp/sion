@@ -278,46 +278,62 @@ struct Binary
 
 class FormData
 {
-    std::vector<std::pair<String, Binary>> data_bin_;
-    std::vector<std::pair<String, String>> data_str_;
+    std::vector<std::pair<String, std::vector<char>>> data_;
     String boundary_;
 
   public:
     FormData() { boundary_ = "----SionBoundary" + std::to_string(long(this)); }
     ~FormData() {}
-    void Append(String name, Binary value) { data_bin_.push_back({name, value}); }
-    void Append(String name, String value) { data_str_.push_back({name, value}); }
-    const std::vector<std::pair<String, Binary>>& BinRawData() const { return data_bin_; }
-    const std::vector<std::pair<String, String>>& StrRawData() const { return data_str_; }
+    void Append(String name, Binary value)
+    {
+        std::vector<char> res;
+        String filename = value.file_name.size() ? "; filename=\"" + value.file_name + "\"" : "";
+        String str = "--" + boundary_ + crlf;
+        str += "Content-Disposition: form-data; name=\"" + name + "\"";
+        str += filename;
+        str += crlf;
+        if (value.type != "")
+        {
+            str += "Content-type: " + value.type;
+            str += crlf;
+        }
+        str += crlf;
+        PushStr2Vec(str, res);
+        res.insert(res.end(), value.data.begin(), value.data.end());
+        PushStr2Vec(crlf, res);
+        data_.push_back({name, res});
+    }
+    void Append(String name, String value)
+    {
+        std::vector<char> res;
+        String str = "--" + boundary_ + crlf;
+        str += "Content-Disposition: form-data; name=\"" + name + "\"" + crlf;
+        str += crlf;
+        str += value;
+        str += crlf;
+        PushStr2Vec(str, res);
+        data_.push_back({name, res});
+    }
+    bool Remove(String key)
+    {
+        for (size_t i = 0; i < data_.size(); i++)
+        {
+            if (data_[i].first == key)
+            {
+                data_.erase(data_.begin() + i);
+                return true;
+            }
+        }
+        return false;
+    }
+    const std::vector<std::pair<String, std::vector<char>>>& Data() const { return data_; }
     String GetContentType() { return "multipart/form-data; boundary=" + boundary_; }
     std::vector<char> Serialize()
     {
         std::vector<char> res;
-        for (auto& i : data_str_)
+        for (auto& i : data_)
         {
-            String str = "--" + boundary_ + crlf;
-            str += "Content-Disposition: form-data; name=\"" + i.first + "\"" + crlf;
-            str += crlf;
-            str += i.second;
-            str += crlf;
-            PushStr2Vec(str, res);
-        }
-        for (auto& i : data_bin_)
-        {
-            String filename = i.second.file_name.size() ? "; filename=\"" + i.second.file_name + "\"" : "";
-            String str = "--" + boundary_ + crlf;
-            str += "Content-Disposition: form-data; name=\"" + i.first + "\"";
-            str += filename;
-            str += crlf;
-            if (i.second.type != "")
-            {
-                str += "Content-type: " + i.second.type;
-                str += crlf;
-            }
-            str += crlf;
-            PushStr2Vec(str, res);
-            res.insert(res.end(), i.second.data.begin(), i.second.data.end());
-            PushStr2Vec(crlf, res);
+            res.insert(res.end(), i.second.begin(), i.second.end());
         }
         res.push_back('-');
         res.push_back('-');
