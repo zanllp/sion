@@ -35,6 +35,7 @@ class Response;
 class Error : public std::exception
 {
     std::string msg;
+
   public:
     Error() {}
     Error(std::string msg) : msg(msg) {}
@@ -261,15 +262,70 @@ Socket GetSocket()
     auto tcp_socket = socket(AF_INET, SOCK_STREAM, 0); // ipv4,tcp,tcp或udp该参数可为0
     return tcp_socket;
 }
+
+const String crlf = "\r\n";
+const String crlf_crlf = "\r\n\r\n";
+void PushStr2Vec(const String& str, std::vector<char>& vec) { vec.insert(vec.end(), str.begin(), str.end()); }
+
 namespace Payload
 {
+struct Binary
+{
+    std::vector<char> data;
+    String file_name;
+    String type;
+};
+
 class FormData
 {
-  private:
-    /* data */
+    std::vector<std::pair<String, Binary>> data_bin_;
+    std::vector<std::pair<String, String>> data_str_;
+    String boundary_;
+
   public:
-    FormData(/* args */) {}
+    FormData() { boundary_ = "----SionBoundary" + std::to_string(long(this)); }
     ~FormData() {}
+    void Append(String name, Binary value) { data_bin_.push_back({name, value}); }
+    void Append(String name, String value) { data_str_.push_back({name, value}); }
+    const std::vector<std::pair<String, Binary>>& BinRawData() const { return data_bin_; }
+    const std::vector<std::pair<String, String>>& StrRawData() const { return data_str_; }
+    String GetContentType() { return "multipart/form-data; boundary=" + boundary_; }
+    std::vector<char> Serialize()
+    {
+        std::vector<char> res;
+        for (auto& i : data_str_)
+        {
+            String str = "--" + boundary_ + crlf;
+            str += "Content-Disposition: form-data; name=\"" + i.first + "\"" + crlf;
+            str += crlf;
+            str += i.second;
+            str += crlf;
+            PushStr2Vec(str, res);
+        }
+        for (auto& i : data_bin_)
+        {
+            String filename = i.second.file_name.size() ? "; filename=\"" + i.second.file_name + "\"" : "";
+            String str = "--" + boundary_ + crlf;
+            str += "Content-Disposition: form-data; name=\"" + i.first + "\"";
+            str += filename;
+            str += crlf;
+            if (i.second.type != "")
+            {
+                str += "Content-type: " + i.second.type;
+                str += crlf;
+            }
+            str += crlf;
+            PushStr2Vec(str, res);
+            res.insert(res.end(), i.second.data.begin(), i.second.data.end());
+            PushStr2Vec(crlf, res);
+        }
+        res.push_back('-');
+        res.push_back('-');
+        PushStr2Vec(boundary_, res);
+        res.push_back('-');
+        res.push_back('-');
+        return res;
+    }
 };
 } // namespace Payload
 
@@ -377,11 +433,10 @@ class Response
 
     bool CanParseHeader()
     {
-        String body_separator = "\r\n\r\n";
         auto buf_str = Sourse2Str();
-        if (resp_body_start_pos_ == -1 && buf_str.find(body_separator) != -1)
+        if (resp_body_start_pos_ == -1 && buf_str.find(crlf_crlf) != -1)
         {
-            resp_body_start_pos_ = buf_str.find(body_separator) + 4;
+            resp_body_start_pos_ = buf_str.find(crlf_crlf) + 4;
         }
         return resp_body_start_pos_ != std::string::npos;
     }
@@ -390,7 +445,7 @@ class Response
     {
         String buf_str = Sourse2Str();
         auto header_str = buf_str.substr(0, resp_body_start_pos_);
-        auto data = String(header_str).Split("\r\n");
+        auto data = String(header_str).Split(crlf);
         if (data.size() == 0)
         {
             return;
@@ -466,14 +521,14 @@ struct HttpProxy
 
 class Request
 {
-    String source_;
+    std::vector<char> source_;
     String method_;
     String path_;
     String protocol_;
     String ip_;
     String url_;
     String host_;
-    String request_body_;
+    std::vector<char> request_body_;
     String protocol_version_ = "HTTP/1.1";
     Header request_header_;
     HttpProxy proxy_;
@@ -518,15 +573,23 @@ class Request
 
     Request& SetBody(String body)
     {
-        request_body_ = body;
+        request_body_.clear();
+        PushStr2Vec(body, request_body_);
+        return *this;
+    }
+
+    Request& SetBody(Payload::Binary body)
+    {
+        request_body_.clear();
+        request_body_.insert(request_body_.begin(), body.data.begin(), body.data.end());
         return *this;
     }
 
     Request& SetBody(Payload::FormData body)
     {
-        request_header_.RemoveAll("content-type");
-        request_header_.Add("Content-Type", "multipart/form-data");
-        // request_body_ = body;
+        request_body_ = body.Serialize();
+        request_header_.RemoveAll("Content-Type");
+        request_header_.Add("Content-Type", body.GetContentType());
         return *this;
     }
 
@@ -567,7 +630,7 @@ class Request
         check(ssl != nullptr && ssl_ctx != nullptr, "openssl初始化异常");
         SSL_set_fd(ssl, socket);
         SSL_connect(ssl);
-        SSL_write(ssl, source_.c_str(), source_.length());
+        SSL_write(ssl, source_.data(), source_.size());
         auto resp = ReadResponse(socket, ssl);
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -604,7 +667,7 @@ class Request
             BuildRequestString();
             if (protocol_ == "http")
             {
-                send(socket, source_.c_str(), int(source_.length()), 0);
+                send(socket, source_.data(), source_.size(), 0);
                 return ReadResponse(socket);
             }
 #ifndef SION_DISABLE_SSL
@@ -628,15 +691,16 @@ class Request
     void BuildRequestString()
     {
         request_header_.Add("Host", host_);
-        request_header_.Add("Content-Length", std::to_string(request_body_.length()));
+        request_header_.Add("Content-Length", std::to_string(request_body_.size()));
         auto request_target = enable_proxy_ ? url_ : path_;
-        source_ = method_ + " " + request_target + " " + protocol_version_ + "\r\n";
+        String source_str = method_ + " " + request_target + " " + protocol_version_ + crlf;
         for (auto& x : request_header_.Data())
         {
-            source_ += x.first + ": " + x.second + "\r\n";
+            source_str += x.first + ": " + x.second + crlf;
         }
-        source_ += "\r\n";
-        source_ += request_body_;
+        source_str += crlf;
+        PushStr2Vec(source_str, source_);
+        source_.insert(source_.end(), request_body_.begin(), request_body_.end());
     }
 
     void Connection(Socket socket, String host)
@@ -725,7 +789,7 @@ class Request
                 auto chunked_end_offset = body.size() - 4;
                 auto chunked_end_iter = body.begin() + chunked_end_offset;
                 auto chunked_end = std::string(chunked_end_iter, chunked_end_iter + 4);
-                if (chunked_end != "\r\n\r\n")
+                if (chunked_end != crlf_crlf)
                 {
                     return false;
                 }
