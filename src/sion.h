@@ -298,7 +298,7 @@ class Header
         {
         }
     }
-    Header(const RawT& other) noexcept { data = other; }
+    Header(const RawT& other) { data = other; }
     // 添加一个键值对到头中
     void Add(String k, String v) { data.push_back({k, v}); }
     // 获取头的键所对应的所有值
@@ -356,7 +356,7 @@ class Response
     Response(){};
     ~Response(){};
 
-    Response(std::vector<char> source) noexcept
+    Response(std::vector<char> source)
     {
         source_ = source;
         ParseHeader();
