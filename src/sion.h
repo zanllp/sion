@@ -238,7 +238,13 @@ static String GetIpByHost(String hostname)
     hints.ai_family = AF_INET; // ipv4
     if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
     {
-        Throw("错误" + std::to_string(err) + String(gai_strerror(err)));
+#if _WIN32
+            auto str_err = gai_strerrorA(err);
+#else
+            auto str_err = gai_strerror(err);
+#endif // _WIN32
+
+            Throw("错误" + std::to_string(err) + String(str_err));
     }
     addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
     char str[INET_ADDRSTRLEN];
@@ -729,11 +735,7 @@ class Request
         in_addr sa;
         ip_ = host.HasLetter() ? GetIpByHost(host) : host;
         auto target_ip = enable_proxy_ ? (proxy_.host.HasLetter() ? GetIpByHost(proxy_.host) : proxy_.host) : ip_;
-#ifdef _WIN32
-        check<std::invalid_argument>((InetPton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
-#else
-        check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
-#endif
+            check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
         sockaddr_in saddr;
         saddr.sin_family = AF_INET;
         saddr.sin_port = htons(enable_proxy_ ? proxy_.port : port_);
