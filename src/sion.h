@@ -239,12 +239,12 @@ static String GetIpByHost(String hostname)
     if ((err = getaddrinfo(hostname.c_str(), NULL, &hints, &res)) != 0)
     {
 #if _WIN32
-            auto str_err = gai_strerrorA(err);
+        auto str_err = gai_strerrorA(err);
 #else
-            auto str_err = gai_strerror(err);
+        auto str_err = gai_strerror(err);
 #endif // _WIN32
 
-            Throw("错误" + std::to_string(err) + String(str_err));
+        Throw("错误" + std::to_string(err) + String(str_err));
     }
     addr.s_addr = ((sockaddr_in*)(res->ai_addr))->sin_addr.s_addr;
     char str[INET_ADDRSTRLEN];
@@ -672,19 +672,18 @@ class Request
         check<std::invalid_argument>(method_.length(), "请求方法未定义");
         std::smatch m;
 #ifndef SION_DISABLE_SSL
-        std::regex url_parse(R"(^(http|https)://([\w.]*):?(\d*)(/?.*)$)");
+        std::regex url_parse(R"(^(http|https)://([\w.-]*):?(\d*)(/?.*)$)");
         regex_match(url, m, url_parse);
         check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
         protocol_ = m[1];
         port_ = m[3].length() == 0 ? (protocol_ == "http" ? 80 : 443) : stoi(m[3]);
 #else
-        std::regex url_parse(R"(^(http)://([\w.]*):?(\d*)(/?.*)$)");
+        std::regex url_parse(R"(^(http)://([\w.-]*):?(\d*)(/?.*)$)");
         regex_match(url, m, url_parse);
         check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
         protocol_ = m[1];
         port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
 #endif
-        check<std::invalid_argument>(!(protocol_ == "https" && enable_proxy_), "https暂时不支持代理");
         host_ = m[2];
         path_ = m[4].length() == 0 ? "/" : m[4].str();
         Socket socket = GetSocket();
@@ -692,7 +691,7 @@ class Request
         {
             Connection(socket, host_);
             BuildRequestString();
-            if (protocol_ == "http")
+            if (protocol_ == "http" || enable_proxy_)
             {
                 send(socket, source_.data(), source_.size(), 0);
                 return ReadResponse(socket);
@@ -735,7 +734,7 @@ class Request
         in_addr sa;
         ip_ = host.HasLetter() ? GetIpByHost(host) : host;
         auto target_ip = enable_proxy_ ? (proxy_.host.HasLetter() ? GetIpByHost(proxy_.host) : proxy_.host) : ip_;
-            check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
+        check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
         sockaddr_in saddr;
         saddr.sin_family = AF_INET;
         saddr.sin_port = htons(enable_proxy_ ? proxy_.port : port_);
@@ -769,7 +768,7 @@ class Request
         auto Read = [&]() {
             buf.fill(0);
             int status = 0;
-            if (protocol_ == "http")
+            if (protocol_ == "http" || enable_proxy_)
             {
                 status = recv(socket, buf.data(), buf_size - 1, 0);
             }

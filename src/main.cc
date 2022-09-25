@@ -1,6 +1,7 @@
 
 #include "sion.h"
 #include <chrono>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
 
@@ -91,9 +92,17 @@ void AsyncCallback()
 
 void RequestWithProxy()
 {
-    sion::HttpProxy proxy{10080, "127.0.0.1"};
-    auto resp = sion::Request().SetProxy(proxy).SetUrl("http://google.com").SetHttpMethod("GET").Send();
-    std::cout << "google server: " << resp.GetHeader().Get("server") << std::endl;
+    std::smatch m;
+    std::regex url_parse(R"(^http://([\w.]+):(\d+)$)");
+    std::string proxy_env(std::getenv("http_proxy"));
+    std::regex_match(proxy_env, m, url_parse);
+    int port = std::stoi(m[2]);
+    std::string ip = m[1];
+    sion::HttpProxy proxy{port, ip}; // 请求代理服务器，只支持http
+    // 如果身份验证自己加个header https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Headers/Proxy-Authorization
+    auto resp = sion::Request().SetProxy(proxy).SetUrl("https://github.com/").SetHttpMethod("GET").Send();
+    std::cout << "server: " << resp.GetHeader().Get("server") << std::endl;
+    std::cout << resp.StrBody() << std::endl;
 }
 
 sion::Payload::Binary LoadFile(sion::String path, sion::String type)
@@ -134,6 +143,8 @@ void PostBinaryData()
 }
 int main()
 {
+    RequestWithProxy();
+    return 0;
     async_thread_pool.Start();
     // RequestWithProxy();
     FetchHeader();
