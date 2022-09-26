@@ -7,7 +7,7 @@
 * 支持文本及二进制的响应体
 * 支持分块(chunked)的传输编码
 * 支持FormData&单独的二进制载荷请求
-* 支持代理(仅http)
+* 支持http代理
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
 # 用法
 
@@ -199,7 +199,7 @@ struct Binary
 class FormData
 {
     void Append(String name, Binary value); // 添加一个新的二进制值
-    void Append(String name, String value); // 添加一个新的字符串键  
+    void Append(String name, String value); // 添加一个新的字符串键
     bool Remove(String key); // 移除一项，返回是否成功
     const std::vector<std::pair<String, std::vector<char>>>& Data() const; // 返回数据本体
 };

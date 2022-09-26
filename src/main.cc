@@ -7,12 +7,12 @@
 
 sion::Async async_thread_pool;
 
-const sion::String ms_url = "https://visualstudio.microsoft.com/zh-hans/msdn-platforms/";
+const sion::String url = "https://github.com/zanllp/sion";
 
 void FetchHeader()
 {
 
-    auto resp = sion::Fetch("https://github.com/zanllp/sion");
+    auto resp = sion::Fetch(url);
     std::cout << resp.StrBody().substr(0, 100) << "..." << std::endl << "cache-control: " << resp.GetHeader().Get("cache-control");
     for (auto&& i : resp.GetHeader().Data())
     {
@@ -22,7 +22,7 @@ void FetchHeader()
 
 void FetchChunkedHtml()
 {
-    auto resp = sion::Fetch(ms_url);
+    auto resp = sion::Fetch(url);
     std::cout << resp.StrBody().substr(0, 100) << "..." << std::endl;
 }
 
@@ -49,7 +49,7 @@ void AsyncGetAvailableResponse()
     const int num = 100;
     for (size_t i = 0; i < num; i++)
     {
-        async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+        async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
     }
     int i = 0;
     while (i <= num)
@@ -67,14 +67,14 @@ void AsyncGetAvailableResponse()
 void AsyncAwait()
 {
     {
-        auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+        auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
         auto pkg = async_thread_pool.Await(id);
         std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
     }
     {
         try
         {
-            auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+            auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
             auto pkg = async_thread_pool.Await(id, 10);
         }
         catch (const std::exception& e)
@@ -86,7 +86,7 @@ void AsyncAwait()
 
 void AsyncCallback()
 {
-    async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); },
+    async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); },
                           [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
 }
 
@@ -100,7 +100,7 @@ void RequestWithProxy()
     std::string ip = m[1];
     sion::HttpProxy proxy{port, ip}; // 请求代理服务器，只支持http
     // 如果身份验证自己加个header https://developer.mozilla.org/zh-CN/docs/Web/HTTP/Headers/Proxy-Authorization
-    auto resp = sion::Request().SetProxy(proxy).SetUrl("https://github.com/").SetHttpMethod("GET").Send();
+    auto resp = sion::Request().SetProxy(proxy).SetUrl(url).SetHttpMethod("GET").Send();
     std::cout << "server: " << resp.GetHeader().Get("server") << std::endl;
     std::cout << resp.StrBody() << std::endl;
 }
@@ -143,8 +143,6 @@ void PostBinaryData()
 }
 int main()
 {
-    RequestWithProxy();
-    return 0;
     async_thread_pool.Start();
     // RequestWithProxy();
     FetchHeader();
