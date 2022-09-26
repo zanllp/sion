@@ -671,7 +671,7 @@ class Request
     {
         check<std::invalid_argument>(method_.length(), "请求方法未定义");
         std::smatch m;
-#ifndef SION_DISABLE_SSL
+#ifdef SION_DISABLE_SSL
         bool enable_ssl = false;
 #else
         bool enable_ssl = true;
