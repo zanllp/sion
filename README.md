@@ -8,14 +8,14 @@
 * 支持分块(chunked)的传输编码
 * 支持FormData&单独的二进制载荷请求
 * 支持http代理
-* 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_
+* 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_。如果使用了代理，即使是没启用ssl，也可以请求https链接。
 # 用法
 
 ## 导入
 直接复制[sion.h](src/sion.h)到自己的项目下`include`
 ## 最普通的GET请求
 ```cpp
-auto resp = sion::Fetch(ms_url);
+auto resp = sion::Fetch(url);
 std::cout << resp.StrBody() << std::endl;
 std::cout << resp.GetHeader().Get("content-type") << std::endl;
 ```
@@ -47,7 +47,7 @@ sion::Async处理异步有3种方式
 1. 使用回调
 
 ```cpp
-async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); },
+async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); },
                           [](sion::AsyncResponse async_resp) { std::cout << "AsyncCallback " << async_resp.resp.Status() << std::endl; });
 ```
 
@@ -56,14 +56,14 @@ async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(
 在无回调时提交任务到线程池会返回给你一个id，通过这个id我们可以使用await在当前线程上等待请求完成。
 
 ```cpp
-auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
 // 在Run后的这段时间里当前线程可以先去干其他的活，等待需要使用响应时再使用await获取响应。
 auto pkg = async_thread_pool.Await(id);
 std::cout << "AsyncAwait " << pkg.resp.GetHeader().Data().size() << pkg.err_msg << std::endl;
 // 你可以给await添加超时时间，如果超时会抛出AsyncAwaitTimeout
 try
 {
-    auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+    auto id = async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
     auto pkg = async_thread_pool.Await(id, 10);
 }
 catch (const std::exception& e)
@@ -80,7 +80,7 @@ catch (const std::exception& e)
 const int num = 100;
 for (size_t i = 0; i < num; i++)
 {
-    async_thread_pool.Run([=] { return sion::Request().SetUrl(ms_url).SetHttpMethod(sion::Method::Get); });
+    async_thread_pool.Run([=] { return sion::Request().SetUrl(url).SetHttpMethod(sion::Method::Get); });
 }
 int i = 0;
 while (i <= num)

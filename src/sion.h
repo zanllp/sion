@@ -672,18 +672,26 @@ class Request
         check<std::invalid_argument>(method_.length(), "请求方法未定义");
         std::smatch m;
 #ifndef SION_DISABLE_SSL
-        std::regex url_parse(R"(^(http|https)://([\w.-]*):?(\d*)(/?.*)$)");
-        regex_match(url, m, url_parse);
-        check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http,https外的协议");
-        protocol_ = m[1];
-        port_ = m[3].length() == 0 ? (protocol_ == "http" ? 80 : 443) : stoi(m[3]);
+        bool enable_ssl = false;
 #else
-        std::regex url_parse(R"(^(http)://([\w.-]*):?(\d*)(/?.*)$)");
-        regex_match(url, m, url_parse);
-        check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
-        protocol_ = m[1];
-        port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
+        bool enable_ssl = true;
 #endif
+        if (enable_ssl || enable_proxy_)
+        {
+            std::regex url_parse(R"(^(http|https)://([\w.-]*):?(\d*)(/?.*)$)");
+            regex_match(url, m, url_parse);
+            check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http(s)外的协议");
+            protocol_ = m[1];
+            port_ = m[3].length() == 0 ? (protocol_ == "http" ? 80 : 443) : stoi(m[3]);
+        }
+        else
+        {
+            std::regex url_parse(R"(^(http)://([\w.-]*):?(\d*)(/?.*)$)");
+            regex_match(url, m, url_parse);
+            check<std::invalid_argument>(m.size() == 5, "url格式不对或者是用了除http外的协议");
+            protocol_ = m[1];
+            port_ = m[3].length() == 0 ? 80 : stoi(m[3]);
+        }
         host_ = m[2];
         path_ = m[4].length() == 0 ? "/" : m[4].str();
         Socket socket = GetSocket();
