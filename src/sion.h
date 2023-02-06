@@ -83,8 +83,7 @@ class String : public std::string
     std::vector<String> Split(String flag, int num = -1, bool skip_empty = true) const
     {
         std::vector<String> data_set;
-        auto push_data = [&](String line)
-        {
+        auto push_data = [&](String line) {
             if (line.length() != 0 || !skip_empty)
             {
                 data_set.push_back(line);
@@ -97,7 +96,7 @@ class String : public std::string
         }
         for (auto i = 0; i < static_cast<int>(pos.size()) + 1; i++)
         {
-            if (data_set.size() == num && static_cast<int>() > num && num != -1)
+            if (data_set.size() == num && static_cast<int>(pos.size()) > num && num != -1)
             { // 满足数量直接截到结束
                 push_data(substr(pos[data_set.size()] + flag.size()));
                 break;
@@ -228,7 +227,7 @@ void check(
         Throw<ExceptionType>(msg);
     }
 }
-using Socket = std::intptr_t;
+using Socket = int;
 static String GetIpByHost(String hostname)
 {
     addrinfo hints, *res;
@@ -525,8 +524,7 @@ class Response
         std::vector<char> pure_source_char;
         // 获取下一个\r\n的位置
         int crlf_pos = 0;
-        auto get_next_crlf = [&](int leap)
-        {
+        auto get_next_crlf = [&](int leap) {
             for (int i = crlf_pos + leap; i < static_cast<int>(sc.size() - 1); i++)
             {
                 if (sc[i] == '\r' && sc[i + 1] == '\n')
@@ -679,7 +677,7 @@ class Request
         check(ssl != nullptr && ssl_ctx != nullptr, "openssl初始化异常");
         SSL_set_fd(ssl, socket);
         SSL_connect(ssl);
-        SSL_write(ssl, source_.data(), source_.size());
+        SSL_write(ssl, source_.data(), int(source_.size()));
         auto resp = ReadResponse(socket, ssl);
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -795,8 +793,7 @@ class Request
     {
         const int buf_size = 2048;
         std::array<char, buf_size> buf{0};
-        auto Read = [&]()
-        {
+        auto Read = [&]() {
             buf.fill(0);
             int status = 0;
             if (protocol_ == "http" || enable_proxy_)
@@ -831,8 +828,7 @@ class Request
 
         resp.ParseHeader();
         // 检查是否接收完
-        auto check_end = [&]
-        {
+        auto check_end = [&] {
             const auto& body = resp.Body();
             if (resp.is_chunked_)
             {
@@ -976,8 +972,7 @@ class Async
     {
         std::unique_lock<std::mutex> lk(waiting_resp_queue_mutex_);
         auto& queue = waiting_handle_response_;
-        auto check = [&]
-        {
+        auto check = [&] {
             for (auto& i : queue)
             {
                 if (i.id == id)
@@ -1009,7 +1004,7 @@ class Async
     void Start()
     {
         check<std::logic_error>(!running_, "一个线程池实例只能start一次");
-        for (int i{}; i < thread_num_; i++)
+        for (int i = 0; i < thread_num_; i++)
         {
             threads_[i] = std::thread([&, i] { AsyncLoop(i); });
         }
