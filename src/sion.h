@@ -94,9 +94,9 @@ class String : public std::string
         {
             return std::vector<String>({*this});
         }
-        for (auto i = 0; i < pos.size() + 1; i++)
+        for (auto i = 0; i < static_cast<int>(pos.size()) + 1; i++)
         {
-            if (data_set.size() == num && pos.size() > num && num != -1)
+            if (data_set.size() == num && static_cast<int>(pos.size()) > num && num != -1)
             { // 满足数量直接截到结束
                 push_data(substr(pos[data_set.size()] + flag.size()));
                 break;
@@ -107,7 +107,7 @@ class String : public std::string
             }
             else if (i != pos.size())
             {
-                int left = pos[i - 1] + flag.length();
+                int left = pos[i - 1] + static_cast<int>(flag.length());
                 int right = pos[i] - left;
                 push_data(substr(left, right));
             }
@@ -122,7 +122,7 @@ class String : public std::string
     // target 需要清除的字符默认空格
     String Trim(String empty_set = " \n\r") const
     {
-        int len = length();
+        int len = static_cast<int>(length());
         int left = 0;
         while (left < len && IncludeSym(empty_set, (*this)[left]))
         {
@@ -189,7 +189,7 @@ class String : public std::string
         auto flag_offset = flag.length() == 0 ? 1 : flag.length();
         while (pos != -1 && result.size() != num)
         {
-            result.push_back(pos);
+            result.push_back(static_cast<int>(pos));
             pos = find(flag, *(--result.end()) + flag_offset);
         }
         return result;
@@ -257,8 +257,28 @@ static Socket GetSocket()
 {
 #ifdef _WIN32
     // 初始化。,WSA windows异步套接字
-    WSADATA inet_WsaData;                      //
-    WSAStartup(MAKEWORD(2, 0), &inet_WsaData); // socket2.0版本
+    WSADATA inet_WsaData;                                          //
+    const auto result = WSAStartup(MAKEWORD(2, 0), &inet_WsaData); // socket2.0版本
+    switch (result)
+    {
+    case WSASYSNOTREADY:
+        WSACleanup();
+        Throw("底层网络子系统尚未准备好进行网络通信");
+        break;
+    case WSAVERNOTSUPPORTED:
+        WSACleanup();
+        Throw("此特定 Windows 套接字实现不提供请求的 Windows 套接字支持版本");
+        break;
+    case WSAEINPROGRESS:
+        WSACleanup();
+        Throw("正在进行阻塞的 Windows Sockets 1.1 操作");
+        break;
+    case WSAEPROCLIM:
+        WSACleanup();
+        Throw("已达到 Windows 套接字实现支持的任务数限制");
+        break;
+    }
+
     if (LOBYTE(inet_WsaData.wVersion) != 2 || HIBYTE(inet_WsaData.wVersion) != 0)
     { // 高位字节指明副版本、低位字节指明主版本
         WSACleanup();
@@ -288,7 +308,7 @@ class FormData
     String boundary_;
 
   public:
-    FormData() { boundary_ = "----SionBoundary" + std::to_string(long(this)); }
+    FormData() { boundary_ = "----SionBoundary" + std::to_string(std::uintptr_t(this)); }
     ~FormData() {}
     void Append(String name, Binary value)
     {
@@ -397,7 +417,7 @@ class Header
     String Get(String key) const
     {
         key = key.ToLowerCase();
-        for (int i = data.size() - 1; i >= 0; i--)
+        for (int i = static_cast<int>(data.size()) - 1; i >= 0; i--)
         {
             if (data[i].first == key)
             {
@@ -505,7 +525,7 @@ class Response
         // 获取下一个\r\n的位置
         int crlf_pos = 0;
         auto get_next_crlf = [&](int leap) {
-            for (int i = crlf_pos + leap; i < (sc.size() - 1); i++)
+            for (int i = crlf_pos + leap; i < static_cast<int>(sc.size() - 1); i++)
             {
                 if (sc[i] == '\r' && sc[i + 1] == '\n')
                 {
@@ -531,13 +551,13 @@ class Response
             right = get_next_crlf(1);
         }
         body_ = pure_source_char;
-        content_length_ = pure_source_char.size();
+        content_length_ = static_cast<int>(pure_source_char.size());
     }
 };
 
 struct HttpProxy
 {
-    int port;
+    int port{};
     String host;
 };
 
@@ -657,7 +677,7 @@ class Request
         check(ssl != nullptr && ssl_ctx != nullptr, "openssl初始化异常");
         SSL_set_fd(ssl, socket);
         SSL_connect(ssl);
-        SSL_write(ssl, source_.data(), source_.size());
+        SSL_write(ssl, source_.data(), int(source_.size()));
         auto resp = ReadResponse(socket, ssl);
         SSL_shutdown(ssl);
         SSL_free(ssl);
@@ -701,7 +721,7 @@ class Request
             BuildRequestString();
             if (protocol_ == "http" || enable_proxy_)
             {
-                send(socket, source_.data(), source_.size(), 0);
+                send(socket, source_.data(), static_cast<int>(source_.size()), 0);
                 return ReadResponse(socket);
             }
 #ifndef SION_DISABLE_SSL
@@ -739,11 +759,11 @@ class Request
 
     void Connection(Socket socket, String host)
     {
-        in_addr sa;
+        in_addr sa{};
         ip_ = host.HasLetter() ? GetIpByHost(host) : host;
         auto target_ip = enable_proxy_ ? (proxy_.host.HasLetter() ? GetIpByHost(proxy_.host) : proxy_.host) : ip_;
         check<std::invalid_argument>((inet_pton(AF_INET, target_ip.c_str(), &sa) != -1), "地址转换错误");
-        sockaddr_in saddr;
+        sockaddr_in saddr{};
         saddr.sin_family = AF_INET;
         saddr.sin_port = htons(enable_proxy_ ? proxy_.port : port_);
         saddr.sin_addr = sa;
@@ -875,7 +895,7 @@ enum AsyncResponseReceiveMode
 struct AsyncResponse
 {
     Response resp;
-    int id;
+    int id{};
     String err_msg;
 };
 
@@ -883,8 +903,8 @@ struct AsyncPackage
 {
     Request request;
     std::function<void(AsyncResponse)> callback;
-    int id;
-    AsyncResponseReceiveMode received_mode;
+    int id{};
+    AsyncResponseReceiveMode received_mode{};
 };
 
 class Async
@@ -984,7 +1004,7 @@ class Async
     void Start()
     {
         check<std::logic_error>(!running_, "一个线程池实例只能start一次");
-        for (size_t i = 0; i < thread_num_; i++)
+        for (int i = 0; i < thread_num_; i++)
         {
             threads_[i] = std::thread([&, i] { AsyncLoop(i); });
         }
