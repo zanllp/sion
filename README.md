@@ -1,6 +1,30 @@
 # Sion
-# 特性
-* Sion是一个轻量级简单易用的c++ http客户端
+[![ci](https://github.com/zanllp/sion/actions/workflows/ci.yml/badge.svg)](https://github.com/zanllp/sion/actions/workflows/ci.yml) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style)](https://makeapullrequest.com)
+
+
+直接复制[sion.h](src/sion.h)到自己的项目下`include`
+
+Include [sion.h](src/sion.h) directly
+## GET
+```cpp
+auto resp = sion::Fetch(url);
+std::cout << resp.StrBody() << std::endl;
+std::cout << resp.GetHeader().Get("content-type") << std::endl;
+```
+## POST
+```CPP
+auto resp = sion::Request()
+                .SetBody(R"({ "hello": "world" })")
+                .SetHeader("Content-type", "application/json")
+                .SetUrl("http://www.httpbin.org/post")
+                .SetHttpMethod("POST")
+                .Send();
+std::cout << resp.StrBody() << std::endl;
+```
+> see [main.cc](https://github.com/zanllp/sion/blob/master/src/main.cc) for more example。更多例子参考[main.cc](https://github.com/zanllp/sion/blob/master/src/main.cc)
+
+# 特性/feature
+* Sion是一个轻量级简单易用的c++请求库
 * 仅单个头文件，自带std::string的扩展
 * 跨平台，支持linux, win, mac...
 * 有着良好的异步支持，可以选择以自己喜欢的方式发送异步请求, callback, await, 事件循环, etc.
@@ -11,23 +35,6 @@
 * 支持http,https请求。_https需要安装openssl(推荐使用[vcpkg](https://github.com/microsoft/vcpkg)),如果不需要可以使用 #define SION_DISABLE_SSL 关闭_。如果使用了代理，即使是没启用ssl，也可以请求https链接。
 # 用法
 
-## 导入
-直接复制[sion.h](src/sion.h)到自己的项目下`include`
-## 最普通的GET请求
-```cpp
-auto resp = sion::Fetch(url);
-std::cout << resp.StrBody() << std::endl;
-std::cout << resp.GetHeader().Get("content-type") << std::endl;
-```
-## 链式调用及POST请求
-```CPP
-auto resp = Request()
-			.SetUrl("https://api.zanllp.cn/socket/push?descriptor=fHXMHCQfcgNHDq2P")
-			.SetHttpMethod(Method::Post)
-			.SetBody(R"({"data": 233333,"msg":"hello world!"})")
-			.SetHeader("Content-Type", "application/json; charset=utf-8")
-			.Send();
-```
 
 
 ## 异步请求
@@ -98,7 +105,7 @@ while (i <= num)
 上面几种方式都会返回AsyncResponse，通过这个可以获取异步请求的响应体，id，以及错误信息
 
 ## 更多用法
-包含平凡请求,代理,二进制数据发送,FormData,Async等
+包含普通请求,代理,二进制数据发送,FormData,Async等
 [查看参考](./src/main.cc)
 # 类&函数定义
 ## Fetch
