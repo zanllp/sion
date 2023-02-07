@@ -9,6 +9,7 @@ bin
 *.user
 *.userosscache
 *.sln.docstates
+**/chunked.jpeg
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs

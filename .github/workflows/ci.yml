@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [ master ]
+    paths-ignore: ["README.md"]
+  pull_request:
+    branches: [ master ]
+    paths-ignore: ["README.md"]
+
+jobs:
+  job:
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      matrix:
+        config:
+        - os: ubuntu-latest
+          vcpkg_triplet: x64-linux-release
+        - os: macos-latest
+          vcpkg_triplet: x64-osx-release
+        - os: windows-latest
+          vcpkg_triplet: x64-windows-release
+    steps:
+      - uses: actions/checkout@v3
+      - name: vcpkg build
+        uses: johnwason/vcpkg-action@v4
+        id: vcpkg
+        with:
+          pkgs: openssl
+          triplet: ${{ matrix.config.vcpkg_triplet }}
+          cache-key: ${{ matrix.config.os }}
+          revision: master
+          token: ${{ github.token }}
+      - name: Install dependencies and generate project files
+        run: |
+          cmake -S src -B bin -DVCPKG_PATH=${{ github.workspace }}/vcpkg -DVCPKG_TARGET_TRIPLET=${{ matrix.config.vcpkg_triplet }}
+      - name: Build
+        run: |
+          cmake --build bin
+      - name: Test
+        working-directory: ${{github.workspace}}/bin
+        run: |
+          ctest --verbose
